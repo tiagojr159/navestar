@@ -1,0 +1,44 @@
+[
+    {
+        "user_id": 2,
+        "username": "Estelar77",
+        "ship_name": "Alienigena Vanta 3D",
+        "ship_asset": "model:css_3d_alienigena",
+        "ship_model": "css_3d_alienigena",
+        "energy": 165,
+        "ammo": 140,
+        "position": {
+            "x": 31601.69606445581,
+            "y": 529.2182194400444,
+            "z": -25676.223670816766
+        },
+        "rotation": {
+            "x": 0.7248348641896627,
+            "y": -1.5848989647411673,
+            "z": -5.190668300483823e-16
+        },
+        "online": true,
+        "updated_at": 1779141257
+    },
+    {
+        "user_id": 1,
+        "username": "Comandante",
+        "ship_name": "Voyager CSS 3D",
+        "ship_asset": "model:css_3d_voyager",
+        "ship_model": "css_3d_voyager",
+        "energy": 190,
+        "ammo": 130,
+        "position": {
+            "x": 33397.167145724125,
+            "y": 1511.4288932860952,
+            "z": -25901.417949987044
+        },
+        "rotation": {
+            "x": -0.22402013577725288,
+            "y": -9.464429364929419,
+            "z": 6.989413961787213e-18
+        },
+        "online": true,
+        "updated_at": 1779140882
+    }
+]
