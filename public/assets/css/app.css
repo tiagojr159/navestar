@@ -1248,6 +1248,20 @@ button {
     }
 }
 
+@keyframes cssShipOrbitShowcase {
+    0% {
+        transform: rotateX(64deg) rotateZ(-22deg) rotateY(0deg);
+    }
+
+    50% {
+        transform: rotateX(69deg) rotateZ(26deg) rotateY(180deg);
+    }
+
+    100% {
+        transform: rotateX(64deg) rotateZ(-22deg) rotateY(360deg);
+    }
+}
+
 .ship-card__body {
     display: grid;
     gap: 6px;
@@ -1339,7 +1353,7 @@ button {
 }
 
 .ship-showcase__frame {
-    min-height: 420px;
+    min-height: 620px;
     display: grid;
     place-items: center;
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1351,22 +1365,41 @@ button {
     overflow: hidden;
 }
 
+.ship-showcase__frame--three {
+    padding: 0;
+}
+
+.ship-showcase__canvas {
+    display: block;
+    width: 100%;
+    height: 620px;
+    min-height: 620px;
+    cursor: grab;
+}
+
+.ship-showcase__canvas:active {
+    cursor: grabbing;
+}
+
 .ship-showcase__preview {
     display: grid;
     place-items: center;
-    overflow: hidden;
+    overflow: visible;
     perspective: 900px;
 }
 
 .css-ship-preview--showcase {
-    width: 500px;
-    height: 500px;
+    width: 100px;
+    height: 100px;
+    transform: scale(6.2);
+    transform-origin: center;
 }
 
 .css-ship-preview--showcase .css-ship-preview__body {
-    width: 390px;
-    height: 265px;
-    transform: rotateX(66deg) rotateZ(-16deg);
+    width: 96px;
+    height: 64px;
+    transform: rotateX(64deg) rotateZ(-22deg);
+    animation: cssShipOrbitShowcase 7s ease-in-out infinite;
 }
 
 .css-ship-preview--showcase .css-ship-preview__part {
@@ -1417,17 +1450,25 @@ button {
     }
 
     .ship-showcase__frame {
-        min-height: 320px;
+        min-height: 520px;
+    }
+
+    .ship-showcase__canvas {
+        height: 520px;
+        min-height: 520px;
     }
 
     .css-ship-preview--showcase {
-        width: 340px;
-        height: 340px;
+        width: 100px;
+        height: 100px;
+        transform: scale(4.2);
     }
 
     .css-ship-preview--showcase .css-ship-preview__body {
-        width: 265px;
-        height: 180px;
+        width: 96px;
+        height: 64px;
+        transform: rotateX(64deg) rotateZ(-22deg);
+        animation: cssShipOrbitShowcase 7s ease-in-out infinite;
     }
 
     .page-title--profile {

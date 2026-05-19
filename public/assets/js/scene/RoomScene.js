@@ -17,8 +17,27 @@ import {
 } from './SceneConfig.js';
 import { createPlanetTexture, createSunTexture } from './TextureFactory.js';
 
+const CELESTIAL_DETAIL_LOAD_DISTANCE = 5000;
+const CELESTIAL_DETAIL_UNLOAD_DISTANCE = 7200;
+const UNIVERSE_FLIGHT_HEIGHT = 900;
+const REMOTE_SHIP_COLLIDER_RADIUS = 16;
+
+function roundRect(context, x, y, width, height, radius) {
+    context.beginPath();
+    context.moveTo(x + radius, y);
+    context.lineTo(x + width - radius, y);
+    context.quadraticCurveTo(x + width, y, x + width, y + radius);
+    context.lineTo(x + width, y + height - radius);
+    context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    context.lineTo(x + radius, y + height);
+    context.quadraticCurveTo(x, y + height, x, y + height - radius);
+    context.lineTo(x, y + radius);
+    context.quadraticCurveTo(x, y, x + radius, y);
+    context.closePath();
+}
+
 export class RoomScene {
-    constructor({ canvas, lockButton, resetButton, dockButton, presenceUrl, startState, playerShipFrames, playerShipModel, hud, celestialMenu }) {
+    constructor({ canvas, lockButton, resetButton, dockButton, presenceUrl, startState, playerShipFrames, playerShipModel, playerShipAsset, hud, celestialMenu }) {
         this.canvas = canvas;
         this.lockButton = lockButton;
         this.resetButton = resetButton;
@@ -27,11 +46,14 @@ export class RoomScene {
         this.startState = startState ?? null;
         this.playerShipFrames = playerShipFrames ?? null;
         this.playerShipModel = playerShipModel ?? '';
+        this.playerShipAsset = playerShipAsset ?? '';
         this.hud = hud ?? null;
         this.celestialMenu = celestialMenu ?? null;
+        this.gltfLoaderPromise = null;
         this.clock = new THREE.Clock();
         this.textureLoader = new THREE.TextureLoader();
         this.planetMeshes = [];
+        this.planetSystems = [];
         this.moonSystems = [];
         this.collisionBodies = [];
         this.spaceObjects = [];
@@ -65,21 +87,21 @@ export class RoomScene {
         });
 
         const startPosition = this.startState
-            ? new THREE.Vector3(this.startState.x ?? 18000, this.startState.y ?? 900, this.startState.z ?? -92000)
-            : new THREE.Vector3(18000, 900, -92000);
+            ? new THREE.Vector3(this.startState.x ?? 18000, UNIVERSE_FLIGHT_HEIGHT, this.startState.z ?? -92000)
+            : new THREE.Vector3(18000, UNIVERSE_FLIGHT_HEIGHT, -92000);
         const lookAt = this.startState
             ? new THREE.Vector3(
                 (this.startState.x ?? 18000) + Math.sin(this.startState.ry ?? 0) * 600,
-                (this.startState.y ?? 900),
+                UNIVERSE_FLIGHT_HEIGHT,
                 (this.startState.z ?? -92000) - Math.cos(this.startState.ry ?? 0) * 600,
             )
             : new THREE.Vector3(18000, 0, -98000);
 
         this.controls = new NavigationController(this.camera, this.renderer.domElement, {
             limit: UNIVERSE_HALF,
-            height: 900,
-            minHeight: 120,
-            maxHeight: 52000,
+            height: UNIVERSE_FLIGHT_HEIGHT,
+            minHeight: UNIVERSE_FLIGHT_HEIGHT,
+            maxHeight: UNIVERSE_FLIGHT_HEIGHT,
             moveSpeed: 1800,
             boostMultiplier: 2.2,
             shipRadius: 120,
@@ -113,12 +135,19 @@ export class RoomScene {
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.1;
+        this.renderer.toneMappingExposure = 1.28;
     }
 
     createLights() {
-        const ambient = new THREE.AmbientLight('#7083a6', 0.35);
+        const ambient = new THREE.AmbientLight('#9db4da', 0.72);
         this.scene.add(ambient);
+
+        const spaceFill = new THREE.HemisphereLight('#c8f7ff', '#24313e', 0.82);
+        this.scene.add(spaceFill);
+
+        const shipFill = new THREE.DirectionalLight('#d9fbff', 1.25);
+        shipFill.position.set(-0.45, 0.7, 0.35);
+        this.scene.add(shipFill);
 
         const sunlight = new THREE.PointLight('#ffd58a', 10, 185000, 1.05);
         sunlight.position.set(...SUN.position);
@@ -198,20 +227,19 @@ export class RoomScene {
     }
 
     createPlayerShip() {
+        if (this.isGltfAsset(this.playerShipAsset)) {
+            const ship = this.createProceduralShipMesh('css_3d_voyager', 154);
+            this.setupPlayer3DShip(ship);
+            this.loadGltfShip(this.playerShipAsset, 154).then((gltfShip) => {
+                if (!gltfShip) return;
+                this.replacePlayer3DShip(gltfShip);
+            });
+            return;
+        }
+
         if (this.isProceduralShipModel(this.playerShipModel)) {
             const ship = this.createProceduralShipMesh(this.playerShipModel, 154);
-            ship.position.set(0, -116, -470);
-            ship.rotation.set(-0.08, 0, 0);
-            this.prepareCockpitModel(ship);
-            this.camera.add(ship);
-            this.playerShip = ship;
-            this.playerShipTextures = null;
-            this.createPlayerExhaust(20, 88, new THREE.Vector3(0, -118, -366));
-            this.createMotionStreaks();
-            const shipLight = new THREE.PointLight('#97ecff', 1.9, 1400, 2);
-            shipLight.position.set(0, 40, -360);
-            this.camera.add(shipLight);
-            this.playerShipLight = shipLight;
+            this.setupPlayer3DShip(ship);
             return;
         }
 
@@ -247,6 +275,32 @@ export class RoomScene {
         this.createPlayerExhaust(18, 72, new THREE.Vector3(0, -90, -385));
     }
 
+    setupPlayer3DShip(ship) {
+        ship.position.set(0, -132, -540);
+        ship.rotation.set(-0.3, 0, 0);
+        this.prepareCockpitModel(ship);
+        this.camera.add(ship);
+        this.playerShip = ship;
+        this.playerShipTextures = null;
+        if (!this.playerExhaust) {
+            this.createPlayerExhaust(14, 78, new THREE.Vector3(0, -138, -405));
+        }
+
+        if (!this.playerShipLight) {
+            const shipLight = new THREE.PointLight('#b9f4ff', 2.35, 1500, 2);
+            shipLight.position.set(0, 90, -430);
+            this.camera.add(shipLight);
+            this.playerShipLight = shipLight;
+        }
+    }
+
+    replacePlayer3DShip(ship) {
+        if (this.playerShip) {
+            this.camera.remove(this.playerShip);
+        }
+        this.setupPlayer3DShip(ship);
+    }
+
     createPlayerExhaust(radius, length, position) {
         const exhaustMaterial = new THREE.MeshBasicMaterial({
             color: '#4fe0c2',
@@ -273,6 +327,7 @@ export class RoomScene {
             if (!planet) continue;
 
             const position = new THREE.Vector3(...planet.position).add(new THREE.Vector3(...objectData.offset));
+            position.y = UNIVERSE_FLIGHT_HEIGHT;
             this.createSpaceObject({
                 ...objectData,
                 position,
@@ -284,6 +339,7 @@ export class RoomScene {
         const group = new THREE.Group();
         group.name = name;
         group.position.copy(position);
+        group.position.y = UNIVERSE_FLIGHT_HEIGHT;
         let sprite = null;
 
         if (kind === 'cargo') {
@@ -310,7 +366,7 @@ export class RoomScene {
             baseGroupScale: group.scale.clone(),
             maxHealth: health,
             health,
-            velocity: new THREE.Vector3(...drift),
+            velocity: new THREE.Vector3(drift[0] ?? 0, 0, drift[2] ?? 0),
             alive: true,
             healthBar: null,
         };
@@ -334,21 +390,32 @@ export class RoomScene {
 
         const group = new THREE.Group();
         group.name = player.username || 'Jogador';
-        group.position.set(position.x ?? 18000, position.y ?? 900, position.z ?? -92000);
+        group.position.set(position.x ?? 18000, UNIVERSE_FLIGHT_HEIGHT, position.z ?? -92000);
         group.rotation.set(rotation.x ?? 0, rotation.y ?? 0, rotation.z ?? 0);
 
         let sprite = null;
         const meshTargets = [];
 
-        if (this.isProceduralShipModel(shipModel) || assetPath.startsWith('model:css_3d_')) {
+        if (this.isGltfAsset(assetPath)) {
+            const ship = this.createProceduralShipMesh('css_3d_voyager', 840);
+            this.prepareRemoteProceduralShip(ship);
+            group.add(ship);
+            this.collectShipMeshTargets(ship, group, meshTargets);
+            this.loadGltfShip(assetPath, 840).then((gltfShip) => {
+                if (!gltfShip || !object.alive) return;
+                group.remove(ship);
+                group.add(gltfShip);
+                object.meshTargets = [];
+                this.collectShipMeshTargets(gltfShip, group, object.meshTargets);
+                this.destructibleTargets = this.destructibleTargets.filter((target) => !meshTargets.includes(target));
+                this.destructibleTargets.push(...object.meshTargets);
+            });
+        } else if (this.isProceduralShipModel(shipModel) || assetPath.startsWith('model:css_3d_')) {
             const modelName = this.isProceduralShipModel(shipModel) ? shipModel : assetPath.replace('model:', '');
             const ship = this.createProceduralShipMesh(modelName, 840);
+            this.prepareRemoteProceduralShip(ship);
             group.add(ship);
-            ship.traverse((child) => {
-                if (!child.isMesh) return;
-                child.userData.spaceTarget = group;
-                meshTargets.push(child);
-            });
+            this.collectShipMeshTargets(ship, group, meshTargets);
         } else {
             sprite = new THREE.Sprite(new THREE.SpriteMaterial({
                 map: this.loadTexture(assetPath),
@@ -378,6 +445,7 @@ export class RoomScene {
             velocity: new THREE.Vector3(),
             alive: true,
             healthBar: null,
+            nameplate: null,
             targetPosition: group.position.clone(),
             targetQuaternion: group.quaternion.clone(),
         };
@@ -387,20 +455,98 @@ export class RoomScene {
         if (sprite) {
             this.destructibleTargets.push(sprite);
         } else {
+            const fill = new THREE.PointLight('#b9f4ff', 1.15, 1800, 2);
+            fill.position.set(0, 260, 360);
+            group.add(fill);
             this.destructibleTargets.push(...meshTargets);
         }
         this.remotePlayers.set(String(player.user_id), object);
         this.scene.add(group);
+        object.nameplate = this.createRemoteNameplate(group, object.name);
         object.healthBar = this.createEnergyBar(group, object);
         return object;
     }
 
     normalizeAssetPath(path) {
-        if (path.startsWith('http') || path.startsWith('images/') || path.startsWith('model:')) {
+        if (path.startsWith('http') || path.startsWith('images/') || path.startsWith('model:') || this.isGltfAsset(path)) {
             return path;
         }
 
         return `${ASSET_ROOT}${path}`;
+    }
+
+    isGltfAsset(path) {
+        return typeof path === 'string' && /\.(glb|gltf)(\?.*)?$/i.test(path);
+    }
+
+    collectShipMeshTargets(ship, group, targets) {
+        ship.traverse((child) => {
+            if (!child.isMesh || child.visible === false) return;
+            child.userData.spaceTarget = group;
+            targets.push(child);
+        });
+    }
+
+    prepareRemoteProceduralShip(ship) {
+        ship.traverse((child) => {
+            if (!child.isMesh) return;
+
+            if (child.userData.part === 'cockpitSocket') {
+                child.visible = false;
+                return;
+            }
+
+            if (child.userData.part === 'cockpitCanopy') {
+                child.position.y -= child.userData.remoteYOffset ?? 80;
+                child.scale.y *= 0.16;
+                child.scale.x *= 1.18;
+                child.scale.z *= 1.08;
+                child.renderOrder = 3;
+            }
+        });
+    }
+
+    async getGltfLoader() {
+        if (!this.gltfLoaderPromise) {
+            this.gltfLoaderPromise = import('../../../vendor/GLTFLoader.js')
+                .then((module) => new module.GLTFLoader());
+        }
+
+        return this.gltfLoaderPromise;
+    }
+
+    async loadGltfShip(path, targetSize) {
+        try {
+            const loader = await this.getGltfLoader();
+            const gltf = await loader.loadAsync(path);
+            const ship = gltf.scene;
+            this.prepareLoadedGltfShip(ship, targetSize);
+            return ship;
+        } catch (error) {
+            console.warn('Nao foi possivel carregar GLB/GLTF da nave.', path, error);
+            return null;
+        }
+    }
+
+    prepareLoadedGltfShip(ship, targetSize) {
+        ship.traverse((child) => {
+            child.frustumCulled = false;
+            if (!child.isMesh || !child.material) return;
+            child.castShadow = true;
+            child.receiveShadow = true;
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            for (const material of materials) {
+                material.side = THREE.DoubleSide;
+            }
+        });
+
+        const box = new THREE.Box3().setFromObject(ship);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        const maxSize = Math.max(size.x, size.y, size.z, 1);
+        const scale = targetSize / maxSize;
+        ship.scale.multiplyScalar(scale);
+        ship.position.copy(center).multiplyScalar(-scale);
     }
 
     isProceduralShipModel(model) {
@@ -413,38 +559,26 @@ export class RoomScene {
             child.frustumCulled = false;
             child.renderOrder = 20;
             if (!child.isMesh || !child.material) return;
-            child.material = child.material.clone();
-            child.material.depthTest = false;
-            child.material.depthWrite = false;
-            child.material.side = THREE.DoubleSide;
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            child.material = materials.map((material) => {
+                const cloned = material.clone();
+                const isTransparent = cloned.transparent || cloned.opacity < 1 || cloned.blending === THREE.AdditiveBlending;
+                cloned.depthTest = true;
+                cloned.depthWrite = !isTransparent;
+                cloned.side = THREE.DoubleSide;
+                if ('emissiveIntensity' in cloned) {
+                    cloned.emissiveIntensity = Math.max(cloned.emissiveIntensity ?? 0, 0.48);
+                }
+                return cloned;
+            });
+            if (child.material.length === 1) {
+                child.material = child.material[0];
+            }
         });
     }
 
     createProceduralShipMesh(model, size) {
         return createProceduralShipMesh(model, size);
-    }
-
-    createMotionStreaks() {
-        if (this.motionStreaks) return;
-        this.motionStreaks = [];
-
-        const material = new THREE.MeshBasicMaterial({
-            color: '#6ff5ec',
-            transparent: true,
-            opacity: 0,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            depthTest: false,
-        });
-
-        for (const side of [-1, 1]) {
-            const streak = new THREE.Mesh(new THREE.PlaneGeometry(180, 420), material.clone());
-            streak.position.set(side * 210, -40, -520);
-            streak.rotation.y = side * 0.22;
-            streak.renderOrder = 18;
-            this.camera.add(streak);
-            this.motionStreaks.push(streak);
-        }
     }
 
     createCargoShipMesh(scale) {
@@ -575,6 +709,51 @@ export class RoomScene {
         texture.needsUpdate = true;
     }
 
+    createRemoteNameplate(group, username) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 128;
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: texture,
+            transparent: true,
+            depthWrite: false,
+        }));
+        sprite.position.set(0, 980, 0);
+        sprite.scale.set(820, 205, 1);
+        sprite.renderOrder = 14;
+        sprite.userData.canvas = canvas;
+        sprite.userData.texture = texture;
+        group.add(sprite);
+        this.updateRemoteNameplate(sprite, username);
+        return sprite;
+    }
+
+    updateRemoteNameplate(sprite, username) {
+        if (!sprite) return;
+
+        const canvas = sprite.userData.canvas;
+        const texture = sprite.userData.texture;
+        const context = canvas.getContext('2d');
+        const name = String(username || 'Jogador').slice(0, 24);
+
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.fillStyle = 'rgba(2, 8, 12, 0.78)';
+        context.strokeStyle = 'rgba(79, 224, 194, 0.62)';
+        context.lineWidth = 3;
+        roundRect(context, 14, 14, 484, 100, 18);
+        context.fill();
+        context.stroke();
+
+        context.fillStyle = 'rgba(236, 245, 248, 0.98)';
+        context.font = '700 40px Arial';
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillText(name, canvas.width / 2, canvas.height / 2);
+        texture.needsUpdate = true;
+    }
+
     createBoundary() {
         const half = UNIVERSE_HALF;
         const points = [
@@ -604,6 +783,7 @@ export class RoomScene {
     }
 
     createSun() {
+        const sunPosition = new THREE.Vector3(SUN.position[0], UNIVERSE_FLIGHT_HEIGHT, SUN.position[2]);
         const sun = new THREE.Mesh(
             new THREE.SphereGeometry(SUN.radius, 72, 48),
             new THREE.MeshBasicMaterial({
@@ -611,7 +791,7 @@ export class RoomScene {
                 color: SUN.color,
             }),
         );
-        sun.position.set(...SUN.position);
+        sun.position.copy(sunPosition);
         this.scene.add(sun);
         this.planetMeshes.push({ mesh: sun, speed: 0.018 });
 
@@ -625,7 +805,7 @@ export class RoomScene {
                 depthWrite: false,
             }),
         );
-        glow.position.copy(sun.position);
+        glow.position.copy(sunPosition);
         this.scene.add(glow);
 
         this.addCollisionBody(sun, SUN.radius);
@@ -637,29 +817,18 @@ export class RoomScene {
         for (const planet of PLANETS) {
             const group = new THREE.Group();
             group.name = planet.name;
-            group.position.set(...planet.position);
+            group.position.set(planet.position[0], UNIVERSE_FLIGHT_HEIGHT, planet.position[2]);
             this.scene.add(group);
-            this.planetGroups.set(planet.name, { group, planet });
-
-            const mesh = new THREE.Mesh(
-                new THREE.SphereGeometry(planet.radius, 64, 40),
-                new THREE.MeshStandardMaterial({
-                    map: createPlanetTexture(planet),
-                    roughness: planet.texture === 'ice' ? 0.38 : 0.66,
-                    metalness: 0.02,
-                }),
-            );
-            group.add(mesh);
-            this.planetMeshes.push({ mesh, speed: planet.rotationSpeed });
-            this.addCollisionBody(mesh, planet.radius);
-            mesh.userData.bodyId = `planet:${planet.name}`;
-            mesh.userData.bodyName = planet.name;
-
-            this.createAtmosphere(group, planet);
-            this.createPlanetOrbit(planet);
-            if (planet.ring) {
-                this.createSaturnRing(group, planet.radius);
-            }
+            const system = {
+                group,
+                planet,
+                detailGroup: null,
+                mesh: null,
+                detailsLoaded: false,
+            };
+            this.planetGroups.set(planet.name, system);
+            this.planetSystems.push(system);
+            this.addCollisionBody(group, planet.radius);
         }
     }
 
@@ -671,26 +840,124 @@ export class RoomScene {
             const orbit = new THREE.Group();
             planetSystem.group.add(orbit);
 
-            const mesh = new THREE.Mesh(
-                new THREE.SphereGeometry(moon.radius, 32, 20),
-                new THREE.MeshPhongMaterial({
-                    map: createPlanetTexture({ colors: moon.colors, texture: 'rock' }),
-                    color: '#ffffff',
-                    emissive: '#0b0f12',
-                    emissiveIntensity: 0.08,
-                    shininess: 18,
-                    specular: '#6f7d86',
-                }),
-            );
-            mesh.position.x = moon.distance;
-            orbit.add(mesh);
-            this.planetMeshes.push({ mesh, speed: 0.05 });
-            this.moonSystems.push({ orbit, speed: moon.speed * MOON_ORBIT_SPEED_MULT, mesh, radius: moon.radius });
-            mesh.userData.bodyId = `moon:${moon.name}`;
-            mesh.userData.bodyName = moon.name;
+            const anchor = new THREE.Group();
+            anchor.name = moon.name;
+            anchor.position.x = moon.distance;
+            orbit.add(anchor);
 
-            this.createMoonOrbit(planetSystem.group, moon.distance);
+            this.moonSystems.push({
+                orbit,
+                anchor,
+                moon,
+                speed: moon.speed * MOON_ORBIT_SPEED_MULT,
+                mesh: null,
+                radius: moon.radius,
+                detailsLoaded: false,
+            });
         }
+    }
+
+    updateCelestialDetailLoading() {
+        const shipPosition = this.controls.object.position;
+
+        for (const system of this.planetSystems) {
+            const distance = Math.max(0, shipPosition.distanceTo(system.group.position) - system.planet.radius);
+            if (!system.detailsLoaded && distance <= CELESTIAL_DETAIL_LOAD_DISTANCE) {
+                this.loadPlanetDetails(system);
+            } else if (system.detailsLoaded && distance > CELESTIAL_DETAIL_UNLOAD_DISTANCE) {
+                this.unloadPlanetDetails(system);
+            }
+        }
+
+        for (const moonSystem of this.moonSystems) {
+            const position = moonSystem.anchor.getWorldPosition(new THREE.Vector3());
+            const distance = Math.max(0, shipPosition.distanceTo(position) - moonSystem.radius);
+            if (!moonSystem.detailsLoaded && distance <= CELESTIAL_DETAIL_LOAD_DISTANCE) {
+                this.loadMoonDetails(moonSystem);
+            } else if (moonSystem.detailsLoaded && distance > CELESTIAL_DETAIL_UNLOAD_DISTANCE) {
+                this.unloadMoonDetails(moonSystem);
+            }
+        }
+    }
+
+    loadPlanetDetails(system) {
+        const { planet, group } = system;
+        const detailGroup = new THREE.Group();
+        const mesh = new THREE.Mesh(
+            new THREE.SphereGeometry(planet.radius, 64, 40),
+            new THREE.MeshStandardMaterial({
+                map: createPlanetTexture(planet),
+                roughness: planet.texture === 'ice' ? 0.38 : 0.66,
+                metalness: 0.02,
+            }),
+        );
+        mesh.userData.bodyId = `planet:${planet.name}`;
+        mesh.userData.bodyName = planet.name;
+        detailGroup.add(mesh);
+
+        const atmosphere = this.createAtmosphere(planet);
+        if (atmosphere) detailGroup.add(atmosphere);
+        if (planet.ring) detailGroup.add(this.createSaturnRing(planet.radius));
+
+        group.add(detailGroup);
+        system.detailGroup = detailGroup;
+        system.mesh = mesh;
+        system.detailsLoaded = true;
+        this.planetMeshes.push({ mesh, speed: planet.rotationSpeed });
+    }
+
+    unloadPlanetDetails(system) {
+        if (!system.detailGroup) return;
+
+        system.group.remove(system.detailGroup);
+        this.disposeObject3D(system.detailGroup);
+        this.planetMeshes = this.planetMeshes.filter((entry) => entry.mesh !== system.mesh);
+        system.detailGroup = null;
+        system.mesh = null;
+        system.detailsLoaded = false;
+    }
+
+    loadMoonDetails(moonSystem) {
+        const { moon } = moonSystem;
+        const mesh = new THREE.Mesh(
+            new THREE.SphereGeometry(moon.radius, 32, 20),
+            new THREE.MeshPhongMaterial({
+                map: createPlanetTexture({ colors: moon.colors, texture: 'rock' }),
+                color: '#ffffff',
+                emissive: '#0b0f12',
+                emissiveIntensity: 0.08,
+                shininess: 18,
+                specular: '#6f7d86',
+            }),
+        );
+        mesh.userData.bodyId = `moon:${moon.name}`;
+        mesh.userData.bodyName = moon.name;
+        moonSystem.anchor.add(mesh);
+        moonSystem.mesh = mesh;
+        moonSystem.detailsLoaded = true;
+        this.planetMeshes.push({ mesh, speed: 0.05 });
+    }
+
+    unloadMoonDetails(moonSystem) {
+        if (!moonSystem.mesh) return;
+
+        moonSystem.anchor.remove(moonSystem.mesh);
+        this.disposeObject3D(moonSystem.mesh);
+        this.planetMeshes = this.planetMeshes.filter((entry) => entry.mesh !== moonSystem.mesh);
+        moonSystem.mesh = null;
+        moonSystem.detailsLoaded = false;
+    }
+
+    disposeObject3D(object) {
+        object.traverse((child) => {
+            if (!child.isMesh) return;
+            child.geometry?.dispose();
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            for (const material of materials) {
+                if (material?.map) material.map.dispose();
+                material?.dispose();
+            }
+        });
     }
 
     addCollisionBody(object3d, radius) {
@@ -705,7 +972,7 @@ export class RoomScene {
             id: 'star:Sol',
             name: 'Sol',
             type: 'star',
-            getPosition: () => new THREE.Vector3(...SUN.position),
+            getPosition: () => new THREE.Vector3(SUN.position[0], UNIVERSE_FLIGHT_HEIGHT, SUN.position[2]),
             radius: SUN.radius,
         });
 
@@ -723,13 +990,13 @@ export class RoomScene {
         }
 
         for (const moonSystem of this.moonSystems) {
-            const name = moonSystem.mesh.userData.bodyName ?? 'Lua';
+            const name = moonSystem.moon?.name ?? moonSystem.mesh?.userData.bodyName ?? 'Lua';
             this.bodies.push({
                 id: `moon:${name}`,
                 name,
                 type: 'moon',
-                getPosition: () => moonSystem.mesh.getWorldPosition(new THREE.Vector3()),
-                getObject: () => moonSystem.mesh,
+                getPosition: () => moonSystem.anchor.getWorldPosition(new THREE.Vector3()),
+                getObject: () => moonSystem.mesh ?? moonSystem.anchor,
                 radius: moonSystem.radius,
             });
         }
@@ -945,20 +1212,21 @@ export class RoomScene {
         // Luas mudam de posicao por orbitas
         for (const moonSystem of this.moonSystems) {
             const position = new THREE.Vector3();
-            moonSystem.mesh.getWorldPosition(position);
+            moonSystem.anchor.getWorldPosition(position);
             colliders.push({ x: position.x, y: position.y, z: position.z, r: moonSystem.radius });
         }
 
         for (const object of this.spaceObjects) {
             if (!object.alive || object.kind === 'satellite') continue;
             const position = object.group.getWorldPosition(new THREE.Vector3());
-            colliders.push({ x: position.x, y: position.y, z: position.z, r: object.radius });
+            const colliderRadius = object.kind === 'remote' ? REMOTE_SHIP_COLLIDER_RADIUS : object.radius;
+            colliders.push({ x: position.x, y: position.y, z: position.z, r: colliderRadius });
         }
 
         this.controls.setColliders(colliders);
     }
 
-    createAtmosphere(group, planet) {
+    createAtmosphere(planet) {
         const atmosphere = new THREE.Mesh(
             new THREE.SphereGeometry(planet.radius * 1.075, 64, 40),
             new THREE.MeshBasicMaterial({
@@ -969,10 +1237,10 @@ export class RoomScene {
                 depthWrite: false,
             }),
         );
-        group.add(atmosphere);
+        return atmosphere;
     }
 
-    createSaturnRing(group, radius) {
+    createSaturnRing(radius) {
         const ring = new THREE.Mesh(
             new THREE.RingGeometry(radius * 1.28, radius * 2.25, 96),
             new THREE.MeshBasicMaterial({
@@ -983,7 +1251,7 @@ export class RoomScene {
             }),
         );
         ring.rotation.x = Math.PI / 2.25;
-        group.add(ring);
+        return ring;
     }
 
     createPlanetOrbit(planet) {
@@ -1204,36 +1472,34 @@ export class RoomScene {
     updatePlayerShip(delta) {
         if (!this.playerShip) return;
 
-        if (this.isProceduralShipModel(this.playerShipModel)) {
+        const has3DShip = this.playerShip?.userData?.thrusters
+            || this.isProceduralShipModel(this.playerShipModel)
+            || this.isGltfAsset(this.playerShipAsset);
+
+        if (has3DShip) {
             const movingLeft = this.controls.keys.has('KeyA');
             const movingRight = this.controls.keys.has('KeyD');
             const movingForward = this.controls.keys.has('KeyW') || this.controls.keys.has('ShiftLeft') || this.controls.keys.has('ShiftRight');
-            const roll = (movingLeft ? 0.18 : 0) + (movingRight ? -0.18 : 0);
+            const roll = (movingLeft ? 0.24 : 0) + (movingRight ? -0.24 : 0);
+            const yaw = (movingLeft ? 0.055 : 0) + (movingRight ? -0.055 : 0) + Math.sin(performance.now() * 0.0018) * 0.025;
+            const pitch = -0.3 + (movingForward ? -0.035 : 0) + ((movingLeft || movingRight) ? 0.015 : 0);
+            this.playerShip.rotation.x = THREE.MathUtils.lerp(this.playerShip.rotation.x, pitch, Math.min(1, delta * 5));
             this.playerShip.rotation.z = THREE.MathUtils.lerp(this.playerShip.rotation.z, roll, Math.min(1, delta * 6));
-            this.playerShip.rotation.y = Math.PI + Math.sin(performance.now() * 0.0018) * 0.04;
+            this.playerShip.rotation.y = THREE.MathUtils.lerp(this.playerShip.rotation.y, yaw, Math.min(1, delta * 5));
             this.updateProceduralThrusters(delta, {
                 movingForward,
                 movingLeft,
                 movingRight,
             });
             if (this.playerShipLight) {
-                const targetIntensity = movingForward ? 2.2 : 1.45;
+                const targetIntensity = movingForward ? 2.7 : 1.65;
                 this.playerShipLight.intensity = THREE.MathUtils.lerp(this.playerShipLight.intensity, targetIntensity, Math.min(1, delta * 5));
             }
             if (this.playerExhaust) {
-                const targetOpacity = movingForward ? 0.86 : 0.12;
+                const targetOpacity = movingForward ? 0.42 : 0.05;
                 this.playerExhaust.material.opacity = THREE.MathUtils.lerp(this.playerExhaust.material.opacity, targetOpacity, Math.min(1, delta * 8));
-                const targetScale = movingForward ? 0.98 : 0.28;
+                const targetScale = movingForward ? 0.92 : 0.22;
                 this.playerExhaust.scale.y = THREE.MathUtils.lerp(this.playerExhaust.scale.y, targetScale + Math.sin(performance.now() * 0.018) * 0.08, Math.min(1, delta * 8));
-            }
-            if (this.motionStreaks) {
-                const lateral = (movingLeft ? 1 : 0) + (movingRight ? 1 : 0);
-                const targetOpacity = lateral > 0 ? 0.42 : movingForward ? 0.22 : 0;
-                const targetScale = lateral > 0 ? 1.18 : movingForward ? 1.02 : 0.92;
-                for (const streak of this.motionStreaks) {
-                    streak.material.opacity = THREE.MathUtils.lerp(streak.material.opacity, targetOpacity, Math.min(1, delta * 10));
-                    streak.scale.y = THREE.MathUtils.lerp(streak.scale.y, targetScale, Math.min(1, delta * 8));
-                }
             }
             return;
         }
@@ -1291,6 +1557,7 @@ export class RoomScene {
             if (object.velocity.lengthSq() > 0) {
                 object.group.position.addScaledVector(object.velocity, delta);
             }
+            object.group.position.y = UNIVERSE_FLIGHT_HEIGHT;
             if (object.sprite) {
                 if (object.kind === 'satellite') {
                     this.updateSatelliteVisualScale(object);
@@ -1367,11 +1634,13 @@ export class RoomScene {
     updateRemotePlayerObject(object, delta) {
         if (object.targetPosition && object.targetQuaternion) {
             object.group.position.lerp(object.targetPosition, Math.min(1, delta * 5));
+            object.group.position.y = UNIVERSE_FLIGHT_HEIGHT;
             object.group.quaternion.slerp(object.targetQuaternion, Math.min(1, delta * 5));
             return;
         }
 
         this.updateRemoteMovementAction(object, delta);
+        object.group.position.y = UNIVERSE_FLIGHT_HEIGHT;
     }
 
     updateNetwork(delta) {
@@ -1410,7 +1679,7 @@ export class RoomScene {
         const rotation = this.controls.object.rotation;
         return {
             x: position.x,
-            y: position.y,
+            y: UNIVERSE_FLIGHT_HEIGHT,
             z: position.z,
             rx: rotation.x,
             ry: rotation.y,
@@ -1440,7 +1709,8 @@ export class RoomScene {
             object.ship = player.ship_name || object.ship;
             object.health = player.energy ?? object.health;
             object.ammo = player.ammo ?? object.ammo;
-            object.targetPosition.set(position.x ?? object.group.position.x, position.y ?? object.group.position.y, position.z ?? object.group.position.z);
+            this.updateRemoteNameplate(object.nameplate, object.name);
+            object.targetPosition.set(position.x ?? object.group.position.x, UNIVERSE_FLIGHT_HEIGHT, position.z ?? object.group.position.z);
             object.targetQuaternion.setFromEuler(new THREE.Euler(rotation.x ?? 0, rotation.y ?? 0, rotation.z ?? 0, 'YXZ'));
         }
 
@@ -1530,6 +1800,7 @@ export class RoomScene {
 
         this.updateAutopilot(delta);
         this.updateDocking(delta);
+        this.updateCelestialDetailLoading();
         this.updatePlayerShip(delta);
         this.updateSpaceObjects(delta);
         this.updateLaserBolts(delta);

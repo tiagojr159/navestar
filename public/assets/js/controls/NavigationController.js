@@ -2,11 +2,10 @@ import * as THREE from 'three';
 import { PointerLockControls } from '../../../vendor/PointerLockControls.js';
 
 const MOVE_SPEED = 5.2;
-const LOOK_SPEED = 1.85; // radians/second
+const KEYBOARD_TURN_SPEED = 1.75; // radians/second
 const ROOM_LIMIT = 8.35;
 const CAMERA_HEIGHT = 1.68;
 const BALL_COLLISION_RADIUS = 1.72;
-const MAX_PITCH = THREE.MathUtils.degToRad(85);
 
 export class NavigationController {
     constructor(camera, domElement, options = {}) {
@@ -59,7 +58,7 @@ export class NavigationController {
             return;
         }
 
-        this.applyArrowLook(delta);
+        this.applyKeyboardTurn(delta);
 
         this.direction.set(0, 0, 0);
 
@@ -71,22 +70,6 @@ export class NavigationController {
             this.direction.z -= 1;
         }
 
-        if (this.keys.has('KeyA')) {
-            this.direction.x -= 1;
-        }
-
-        if (this.keys.has('KeyD')) {
-            this.direction.x += 1;
-        }
-
-        if (this.keys.has('KeyR') || this.keys.has('Space')) {
-            this.direction.y += 1;
-        }
-
-        if (this.keys.has('KeyF') || this.keys.has('KeyC') || this.keys.has('ControlLeft') || this.keys.has('ControlRight')) {
-            this.direction.y -= 1;
-        }
-
         if (this.direction.lengthSq() > 0) {
             this.direction.normalize();
         }
@@ -94,9 +77,7 @@ export class NavigationController {
         const boost = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') ? this.boostMultiplier : 1;
         const distance = this.moveSpeed * boost * delta;
         this.currentSpeed = this.moveSpeed * boost * this.direction.length();
-        this.controls.moveRight(this.direction.x * distance);
         this.controls.moveForward(this.direction.z * distance);
-        this.object.position.y += this.direction.y * distance;
 
         this.enforceBounds();
     }
@@ -115,29 +96,19 @@ export class NavigationController {
         });
     }
 
-    applyArrowLook(delta) {
-        // Rotacao por teclado (setas). Funciona com ou sem pointer-lock.
-        // A ordem YXZ e a mesma usada pelo PointerLockControls internamente.
-        const step = LOOK_SPEED * delta;
-
-        let yaw = 0;
-        let pitch = 0;
-
-        if (this.keys.has('ArrowLeft')) yaw += step;
-        if (this.keys.has('ArrowRight')) yaw -= step;
-        if (this.keys.has('ArrowUp')) pitch += step;
-        if (this.keys.has('ArrowDown')) pitch -= step;
-
-        if (yaw === 0 && pitch === 0) return;
+    applyKeyboardTurn(delta) {
+        const left = this.keys.has('KeyA') ? 1 : 0;
+        const right = this.keys.has('KeyD') ? 1 : 0;
+        const yaw = (left - right) * KEYBOARD_TURN_SPEED * delta;
+        if (yaw === 0) return;
 
         const object = this.object;
         object.rotation.order = 'YXZ';
         object.rotation.y += yaw;
-        object.rotation.x = THREE.MathUtils.clamp(object.rotation.x + pitch, -MAX_PITCH, MAX_PITCH);
     }
 
     shouldPreventDefault(code) {
-        return code.startsWith('Arrow') || code === 'Space' || code === 'ControlLeft' || code === 'ControlRight';
+        return code === 'Space' || code === 'ControlLeft' || code === 'ControlRight';
     }
 
     enforceBounds() {
@@ -147,6 +118,7 @@ export class NavigationController {
         position.z = THREE.MathUtils.clamp(position.z, -this.limit, this.limit);
 
         this.resolveCollisions();
+        position.y = THREE.MathUtils.clamp(position.y, this.minHeight, this.maxHeight);
     }
 
     setColliders(colliders) {

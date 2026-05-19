@@ -21,6 +21,9 @@ foreach ($ships as $ship) {
         break;
     }
 }
+
+$showcaseAsset = (string) ($showcaseShip['asset'] ?? '');
+$showcaseGltf = preg_match('/\.(glb|gltf)$/i', $showcaseAsset) ? $showcaseAsset : '';
 ?>
 <!doctype html>
 <html lang="pt-BR">
@@ -29,6 +32,13 @@ foreach ($ships as $ship) {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Hangar | <?= htmlspecialchars($config['app']['name'], ENT_QUOTES, 'UTF-8') ?></title>
     <link rel="stylesheet" href="<?= $assetPath ?>/assets/css/app.css">
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "./<?= $assetPath ?>/vendor/three.module.js"
+            }
+        }
+    </script>
 </head>
 <body class="page-body">
     <main class="page-shell page-shell--hangar">
@@ -74,8 +84,14 @@ foreach ($ships as $ship) {
                 </div>
             </div>
             <div class="ship-showcase__visual">
-                <div class="ship-showcase__frame">
-                    <?= navestar_render_ship_preview($showcaseShip, 'ship-showcase__preview ship-card__image--model', 'css-ship-preview css-ship-preview--showcase') ?>
+                <div class="ship-showcase__frame ship-showcase__frame--three">
+                    <canvas
+                        class="ship-showcase__canvas"
+                        data-hangar-viewer
+                        data-ship-model="<?= htmlspecialchars((string) ($showcaseShip['model'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                        data-ship-gltf="<?= htmlspecialchars($showcaseGltf, ENT_QUOTES, 'UTF-8') ?>"
+                        data-ship-name="<?= htmlspecialchars((string) $showcaseShip['name'], ENT_QUOTES, 'UTF-8') ?>"
+                    ></canvas>
                 </div>
                 <div class="ship-showcase__weapons">
                     <span>Armas equipadas</span>
@@ -106,5 +122,6 @@ foreach ($ships as $ship) {
         </section>
     </main>
     <script src="<?= $assetPath ?>/assets/js/profile-ship-preview.js"></script>
+    <script type="module" src="<?= $assetPath ?>/assets/js/hangar-viewer.js"></script>
 </body>
 </html>

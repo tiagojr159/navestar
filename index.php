@@ -22,6 +22,7 @@ $lastPosition = [
 ];
 $activeShipFrames = $activeShip['frames'] ?? [];
 $activeShipModel = $activeShip['model'] ?? '';
+$activeShipAsset = $activeShip['asset'] ?? '';
 ?>
 <!doctype html>
 <html lang="pt-BR">
@@ -40,7 +41,7 @@ $activeShipModel = $activeShip['model'] ?? '';
 </head>
 <body>
     <main class="experience" data-app-root>
-        <canvas class="experience__canvas" data-scene-canvas data-start-state="<?= htmlspecialchars(json_encode($lastPosition), ENT_QUOTES, 'UTF-8') ?>" data-ship-frames="<?= htmlspecialchars(json_encode($activeShipFrames), ENT_QUOTES, 'UTF-8') ?>" data-ship-model="<?= htmlspecialchars($activeShipModel, ENT_QUOTES, 'UTF-8') ?>"></canvas>
+        <canvas class="experience__canvas" data-scene-canvas data-start-state="<?= htmlspecialchars(json_encode($lastPosition), ENT_QUOTES, 'UTF-8') ?>" data-ship-frames="<?= htmlspecialchars(json_encode($activeShipFrames), ENT_QUOTES, 'UTF-8') ?>" data-ship-model="<?= htmlspecialchars($activeShipModel, ENT_QUOTES, 'UTF-8') ?>" data-ship-asset="<?= htmlspecialchars($activeShipAsset, ENT_QUOTES, 'UTF-8') ?>"></canvas>
 
         <section class="hud" aria-label="Controles do universo">
             <div class="hud__brand">
@@ -122,11 +123,8 @@ $activeShipModel = $activeShip['model'] ?? '';
                     <div class="instructions__title">NAVEGACAO</div>
                     <div class="instructions__grid">
                         <span>W/S</span><b>avancar / recuar</b>
-                        <span>A/D</span><b>lateral</b>
+                        <span>A/D</span><b>girar nave</b>
                         <span>Mouse</span><b>mirar</b>
-                        <span>Setas</span><b>olhar sem mouse</b>
-                        <span>R/Espaco</span><b>subir nave</b>
-                        <span>F/C/Ctrl</span><b>descer nave</b>
                         <span>Shift</span><b>turbo</b>
                         <span>E/Enter/Click</span><b>atirar laser</b>
                         <span>Amigos</span><b>botao abre lista</b>

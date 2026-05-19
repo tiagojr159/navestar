@@ -9,6 +9,7 @@ const dockButton = document.querySelector('[data-dock-control]');
 const startStateRaw = canvas?.dataset?.startState ?? null;
 const shipFramesRaw = canvas?.dataset?.shipFrames ?? null;
 const playerShipModel = canvas?.dataset?.shipModel ?? '';
+const playerShipAsset = canvas?.dataset?.shipAsset ?? '';
 let startState = null;
 let playerShipFrames = null;
 try {
@@ -75,6 +76,7 @@ const universeScene = new RoomScene({
     startState,
     playerShipFrames,
     playerShipModel,
+    playerShipAsset,
     hud,
     celestialMenu,
 });
