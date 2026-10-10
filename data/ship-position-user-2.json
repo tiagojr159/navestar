@@ -1,0 +1,54 @@
+{
+    "x": 22500,
+    "y": 0,
+    "z": -283500,
+    "yaw": -1.4843963267949,
+    "roll": 0,
+    "worldScaleVersion": 2,
+    "cargo": {
+        "Ferro": 68,
+        "Niquel": 0,
+        "Cobalto": 0,
+        "Gelo": 0
+    },
+    "resources": {
+        "europa": 1000000,
+        "ganymede": 1000000,
+        "callisto": 1000000,
+        "tita": 1000000,
+        "encelado": 1000000,
+        "iapeto": 1000000,
+        "titania": 1000000,
+        "tritao": 1000000,
+        "ice_015": 14000,
+        "ice_028": 14000,
+        "ice_036": 14000
+    },
+    "credits": 848,
+    "shipClass": "explorer",
+    "fuel": 981.6,
+    "fleet": [],
+    "weapon": {
+        "installed": false,
+        "kind": "pulse",
+        "owned": [],
+        "damage": 5,
+        "ammo": 0
+    },
+    "destroyedAsteroids": [],
+    "mission": {
+        "id": "khepri-passengers-vesper",
+        "type": "passengers",
+        "material": "",
+        "origin": "khepri",
+        "destination": "vesper",
+        "amount": 50,
+        "delivered": 12,
+        "onboard": 0,
+        "reward": 4200,
+        "paid": 1008,
+        "phase": "pickup",
+        "acceptedAt": "2026-10-07T03:36:01.580Z"
+    },
+    "savedAt": "2026-10-10T18:11:21+02:00"
+}

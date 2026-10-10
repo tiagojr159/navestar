@@ -1,0 +1,6 @@
+Sinalização de chamadas ativa na porta 8090
+
+Fatal error: Uncaught Error: Call to undefined function str_contains() in C:\xampp\htdocs\nave\call-socket-server.php:69
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\nave\call-socket-server.php on line 69

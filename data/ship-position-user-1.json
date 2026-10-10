@@ -1,0 +1,43 @@
+{
+    "x": 22500,
+    "y": 0,
+    "z": -283500,
+    "yaw": 0,
+    "roll": 0,
+    "worldScaleVersion": 2,
+    "cargo": {
+        "Ferro": 109,
+        "Niquel": 0,
+        "Cobalto": 0,
+        "Gelo": 0
+    },
+    "resources": {
+        "europa": 1000000,
+        "ganymede": 1000000,
+        "callisto": 1000000,
+        "tita": 1000000,
+        "encelado": 1000000,
+        "iapeto": 1000000,
+        "titania": 1000000,
+        "tritao": 1000000,
+        "ice_015": 14000,
+        "ice_028": 14000,
+        "ice_036": 14000
+    },
+    "credits": 44385,
+    "shipClass": "explorer",
+    "fuel": 867.95,
+    "fleet": [],
+    "weapon": {
+        "installed": true,
+        "kind": "ion",
+        "owned": [
+            "ion"
+        ],
+        "damage": 25,
+        "ammo": 0
+    },
+    "destroyedAsteroids": [],
+    "mission": null,
+    "savedAt": "2026-10-10T18:10:46+02:00"
+}
