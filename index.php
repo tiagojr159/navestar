@@ -24,10 +24,71 @@ $loadSavedPosition = static function (string $file) use ($worldScaleVersion): ar
   }
   return $saved;
 };
+$positionDatabase = static function (): PDO {
+  require_once __DIR__ . '/database/connection.php';
+  $pdo = db();
+  $pdo->exec("CREATE TABLE IF NOT EXISTS user_ship_positions (
+    user_id BIGINT UNSIGNED NOT NULL,
+    position_data JSON NOT NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id),
+    CONSTRAINT fk_user_ship_positions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB");
+  return $pdo;
+};
+$loadPositionState = static function () use ($mpAuthenticated, $positionFile, $loadSavedPosition, $positionDatabase, $worldScaleVersion): array {
+  if (!$mpAuthenticated) return $loadSavedPosition($positionFile);
+  try {
+    $pdo = $positionDatabase();
+    $query = $pdo->prepare('SELECT position_data FROM user_ship_positions WHERE user_id=? LIMIT 1');
+    $query->execute([(int)$_SESSION['user_id']]);
+    $stored = $query->fetchColumn();
+    if (is_string($stored)) {
+      $snapshot = json_decode($stored, true);
+      if (is_array($snapshot)) {
+        if ((int)($snapshot['worldScaleVersion'] ?? 1) < $worldScaleVersion) {
+          foreach (['x','z'] as $axis) if (isset($snapshot[$axis]) && is_numeric($snapshot[$axis])) $snapshot[$axis] = (float)$snapshot[$axis] * 4.5;
+          $snapshot['worldScaleVersion'] = $worldScaleVersion;
+          $update = $pdo->prepare('UPDATE user_ship_positions SET position_data=? WHERE user_id=?');
+          $update->execute([json_encode($snapshot, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES), (int)$_SESSION['user_id']]);
+        }
+        return $snapshot;
+      }
+    }
+    // Import a player's existing JSON save once, then use the database from now on.
+    $legacy = $loadSavedPosition($positionFile);
+    if ($legacy) {
+      $insert = $pdo->prepare('INSERT IGNORE INTO user_ship_positions (user_id,position_data) VALUES (?,?)');
+      $insert->execute([(int)$_SESSION['user_id'], json_encode($legacy, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)]);
+      $query->execute([(int)$_SESSION['user_id']]);
+      $stored = $query->fetchColumn();
+      $imported = is_string($stored) ? json_decode($stored, true) : null;
+      if (is_array($imported)) return $imported;
+    }
+    return [];
+  } catch (Throwable $error) {
+    error_log('Falha ao carregar posição persistida da nave: ' . $error->getMessage());
+    return [];
+  }
+};
+$savePositionState = static function (array $snapshot) use ($mpAuthenticated, $positionFile, $positionDatabase): bool {
+  if ($mpAuthenticated) {
+    try {
+      $pdo = $positionDatabase();
+      $save = $pdo->prepare('INSERT INTO user_ship_positions (user_id,position_data) VALUES (?,?) ON DUPLICATE KEY UPDATE position_data=VALUES(position_data)');
+      return $save->execute([(int)$_SESSION['user_id'], json_encode($snapshot, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)]);
+    } catch (Throwable $error) {
+      error_log('Falha ao salvar posição persistida da nave: ' . $error->getMessage());
+      return false;
+    }
+  }
+  if (!is_dir(dirname($positionFile)) && !mkdir(dirname($positionFile), 0775, true) && !is_dir(dirname($positionFile))) return false;
+  return file_put_contents($positionFile, json_encode($snapshot, JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES), LOCK_EX) !== false;
+};
 if ($positionAction === 'load-position' || $positionAction === 'save-position') {
   header('Content-Type: application/json; charset=utf-8');
   if ($positionAction === 'load-position') {
-    echo json_encode($loadSavedPosition($positionFile) ?: ['x'=>0,'y'=>0,'z'=>0,'yaw'=>0,'roll'=>0,'fuel'=>1000,'shipClass'=>'explorer','fleet'=>[],'worldScaleVersion'=>$worldScaleVersion], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+    echo json_encode($loadPositionState() ?: ['x'=>0,'y'=>0,'z'=>0,'yaw'=>0,'roll'=>0,'fuel'=>1000,'shipClass'=>'explorer','fleet'=>[],'worldScaleVersion'=>$worldScaleVersion], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
     exit;
   }
 
@@ -114,9 +175,7 @@ if ($positionAction === 'load-position' || $positionAction === 'save-position') 
     }
   }
   $safePosition['savedAt'] = date(DATE_ATOM);
-  if (!is_dir(dirname($positionFile))) mkdir(dirname($positionFile), 0775, true);
-  $result = file_put_contents($positionFile, json_encode($safePosition, JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES), LOCK_EX);
-  if ($result === false) {
+  if (!$savePositionState($safePosition)) {
     http_response_code(500);
     echo json_encode(['error'=>'Não foi possível salvar a posição']);
     exit;
@@ -126,7 +185,7 @@ if ($positionAction === 'load-position' || $positionAction === 'save-position') 
 }
 if ($positionAction === 'load-map') {
   header('Content-Type: application/json; charset=utf-8');
-  $savedPosition = $loadSavedPosition($positionFile);
+  $savedPosition = $loadPositionState();
   $mapBodies = array_values(array_filter($bodies, fn($body) => $body['type'] !== 'Asteroide'));
   echo json_encode([
     'bodies' => $mapBodies,

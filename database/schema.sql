@@ -23,6 +23,14 @@ CREATE TABLE IF NOT EXISTS users (
   KEY ix_users_presence (is_active, last_seen_at)
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS user_ship_positions (
+  user_id BIGINT UNSIGNED NOT NULL,
+  position_data JSON NOT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id),
+  CONSTRAINT fk_user_ship_positions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS user_control_layouts (
   user_id BIGINT UNSIGNED NOT NULL,
   tool_order JSON NOT NULL,

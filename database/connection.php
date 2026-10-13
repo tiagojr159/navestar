@@ -15,11 +15,24 @@ function db(): PDO
         return $connection;
     }
 
-    $host = 'localhost';
-    $database = 'nave';
-    $username = 'root';
-    $password = '';
-    $charset = 'utf8mb4';
+    $projectRoot = dirname(__DIR__);
+    $configPath = $projectRoot . '/config.php';
+    if (!is_file($configPath)) {
+        $configPath = $projectRoot . '/config.example.php';
+    }
+
+    $config = require $configPath;
+    $databaseConfig = $config['database'] ?? [];
+
+    // Variáveis de ambiente podem sobrescrever a configuração local em produção.
+    $host = getenv('DB_HOST') ?: ($databaseConfig['host'] ?? 'localhost');
+    $database = getenv('DB_NAME') ?: ($databaseConfig['name'] ?? 'nave');
+    $username = getenv('DB_USER') ?: ($databaseConfig['user'] ?? 'root');
+    $password = getenv('DB_PASS');
+    if ($password === false) {
+        $password = $databaseConfig['password'] ?? '';
+    }
+    $charset = getenv('DB_CHARSET') ?: ($databaseConfig['charset'] ?? 'utf8mb4');
 
     $dsn = "mysql:host={$host};dbname={$database};charset={$charset}";
     $connection = new PDO($dsn, $username, $password, [
