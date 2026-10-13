@@ -1,8 +1,8 @@
 {
-    "x": 22500,
+    "x": -13500,
     "y": 0,
-    "z": -283500,
-    "yaw": 0,
+    "z": 40500,
+    "yaw": -1.5311963267949,
     "roll": 0,
     "worldScaleVersion": 2,
     "cargo": {
@@ -20,13 +20,13 @@
         "iapeto": 1000000,
         "titania": 1000000,
         "tritao": 1000000,
-        "ice_015": 14000,
-        "ice_028": 14000,
-        "ice_036": 14000
+        "ice_001": 14000,
+        "ice_003": 14000,
+        "ice_006": 14000
     },
-    "credits": 44385,
+    "credits": 44335,
     "shipClass": "explorer",
-    "fuel": 867.95,
+    "fuel": 821.02,
     "fleet": [],
     "weapon": {
         "installed": true,
@@ -35,9 +35,9 @@
             "ion"
         ],
         "damage": 25,
-        "ammo": 0
+        "ammo": 90
     },
     "destroyedAsteroids": [],
     "mission": null,
-    "savedAt": "2026-10-10T18:10:46+02:00"
+    "savedAt": "2026-10-13T07:11:33+02:00"
 }

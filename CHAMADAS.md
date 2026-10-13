@@ -8,7 +8,7 @@ servidor WebSocket não recebe nem grava o áudio.
 
 1. Inicie Apache e MySQL no XAMPP.
 2. Execute `iniciar-sinalizacao-chamadas.bat` (ou `php call-socket-server.php`).
-3. Abra o jogo em `http://localhost/nave/` e entre com duas contas que sejam amigas.
+3. Abra o jogo em `http://localhost/nave/` e entre com duas contas que sejám amigas.
 
 O serviço escuta a porta 8090. Se o processo não estiver ativo, o jogo mantém a
 sinalização pela API e pelo banco de dados como fallback.

@@ -1,15 +1,15 @@
 {
-    "x": 22500,
+    "x": -13500,
     "y": 0,
-    "z": -283500,
-    "yaw": -1.4843963267949,
+    "z": 40500,
+    "yaw": 1.898211179003,
     "roll": 0,
     "worldScaleVersion": 2,
     "cargo": {
         "Ferro": 68,
         "Niquel": 0,
         "Cobalto": 0,
-        "Gelo": 0
+        "Gelo": 1452
     },
     "resources": {
         "europa": 1000000,
@@ -20,13 +20,13 @@
         "iapeto": 1000000,
         "titania": 1000000,
         "tritao": 1000000,
-        "ice_015": 14000,
-        "ice_028": 14000,
-        "ice_036": 14000
+        "ice_001": 14000,
+        "ice_003": 14000,
+        "ice_006": 14000
     },
     "credits": 848,
     "shipClass": "explorer",
-    "fuel": 981.6,
+    "fuel": 444.03,
     "fleet": [],
     "weapon": {
         "installed": false,
@@ -50,5 +50,5 @@
         "phase": "pickup",
         "acceptedAt": "2026-10-07T03:36:01.580Z"
     },
-    "savedAt": "2026-10-10T18:11:21+02:00"
+    "savedAt": "2026-10-13T07:11:33+02:00"
 }

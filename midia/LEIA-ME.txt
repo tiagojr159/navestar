@@ -1,0 +1,5 @@
+PACOTE MERCADO ORBITAL - 70 ICONES PNG COLORIDOS
+
+60 icones graficos 256x256 px com fundo interno escuro e exterior transparente; 10 artes coloridas detalhadas geradas anteriormente.
+Uso: <img src="assets/mercado/01_nave_exploradora.png">.
+Formato PNG. Organizados por nomes de arquivo.

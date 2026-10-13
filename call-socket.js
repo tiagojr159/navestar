@@ -19,7 +19,7 @@
     return {
       isConnected: connected,
       send(message) { if (connected()) socket.send(JSON.stringify(message)); return connected(); },
-      ring(callId) { return this.send({type:'ring',callId}); },
+      ring(callId,video=false) { return this.send({type:'ring',callId,video:Boolean(video)}); },
       notify(callId) { return this.send({type:'state',callId}); },
       signal(callId,signalType,payload) { return this.send({type:'signal',callId,signalType,payload}); },
       close() { closed = true; clearTimeout(retryTimer); clearInterval(heartbeat); socket?.close(); }

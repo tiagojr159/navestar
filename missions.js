@@ -251,18 +251,18 @@
       const stepButton=document.querySelector('#missionStep');stepButton.disabled=true;
       let payment=0;
       try { payment=await settlePayout(mission); }
-      catch(error) { options.message(error.message || 'N?o foi poss?vel registrar o pagamento. Tente novamente.');stepButton.disabled=false;return; }
+      catch(error) { options.message(error.message || 'Não foi possível registrar o pagamento. Tente novamente.');stepButton.disabled=false;return; }
       if (activeMission !== mission) return;
       if (mission.type === 'passengers' && mission.delivered < mission.amount) {
         mission.phase = 'pickup';
         showPayout(payment);
-        options.message(`Grupo entregue: ${mission.delivered}/${mission.amount}. +${payment.toLocaleString('pt-BR')} CR; saldo ${getCredits().toLocaleString('pt-BR')} CR. Retorne ? origem para buscar o pr?ximo grupo.`);
+        options.message(`Grupo entregue: ${mission.delivered}/${mission.amount}. +${payment.toLocaleString('pt-BR')} CR; saldo ${getCredits().toLocaleString('pt-BR')} CR. Retorne à origem para buscar o próximo grupo.`);
         savePosition(); renderBoard(); renderHud(); return;
       }
       window.gameAudio?.play('missionDone');
       activeMission = null;
       showPayout(payment);
-      options.message(`${title} conclu?do. +${payment.toLocaleString('pt-BR')} CR; saldo ${getCredits().toLocaleString('pt-BR')} CR.`);
+      options.message(`${title} concluído. +${payment.toLocaleString('pt-BR')} CR; saldo ${getCredits().toLocaleString('pt-BR')} CR.`);
       savePosition(); renderBoard(); renderHud();
     }
 
@@ -305,7 +305,7 @@
         };
         if(activeMission.delivered>0&&typeof options.payMission==='function'){
           const missionRef=activeMission;
-          options.payMission({...activeMission}).then(result=>{if(!result||activeMission!==missionRef)return;activeMission.paid=Math.max(activeMission.paid,Number(result.paid)||0);setCredits(Number(result.credits)||0);if(Number(result.earned)>0){showPayout(Number(result.earned));options.message(`Pagamento das entregas anteriores: +${Number(result.earned).toLocaleString('pt-BR')} CR; saldo ${getCredits().toLocaleString('pt-BR')} CR.`);savePosition()}}).catch(error=>options.message(error.message||'N?o foi poss?vel atualizar o saldo da miss?o.'));
+          options.payMission({...activeMission}).then(result=>{if(!result||activeMission!==missionRef)return;activeMission.paid=Math.max(activeMission.paid,Number(result.paid)||0);setCredits(Number(result.credits)||0);if(Number(result.earned)>0){showPayout(Number(result.earned));options.message(`Pagamento das entregas anteriores: +${Number(result.earned).toLocaleString('pt-BR')} CR; saldo ${getCredits().toLocaleString('pt-BR')} CR.`);savePosition()}}).catch(error=>options.message(error.message||'Não foi possível atualizar o saldo da missão.'));
         } else if(activeMission.type==='passengers'&&activeMission.delivered>0){const priorEarnings=Math.floor(activeMission.reward*activeMission.delivered/activeMission.amount);const catchUp=Math.max(0,priorEarnings-activeMission.paid);if(catchUp>0){activeMission.paid=priorEarnings;setCredits(getCredits()+catchUp);showPayout(catchUp);options.message(`Pagamento das entregas anteriores: +${catchUp.toLocaleString('pt-BR')} CR; saldo ${getCredits().toLocaleString('pt-BR')} CR.`);savePosition()}}
         renderBoard();
         renderHud();

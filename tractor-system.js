@@ -18,7 +18,7 @@
   towCard.innerHTML = `<div class="item-icon">⌁</div>
     <div class="item-tag">RESGATE / EQUIPAMENTO DE CASCO <b>TRATOR</b></div>
     <h2>Rebocador orbital</h2>
-    <p>Resgata naves sem combust?vel com autoriza??o do piloto ou recupera destro?os.</p>
+    <p>Resgata naves sem combustível com autorização do piloto ou recupera destroços.</p>
     <div class="weapon-specs"><div><span>PESO</span><strong>380 kg</strong></div><div><span>ALCANCE DO CABO</span><strong>2.500 km</strong></div><div><span>INSTALAÇÃO</span><strong id="towItemStatus">NO HANGAR</strong></div></div>
     <div class="siege-cost">12.000 CR + 250 kg de ferro</div>
     <div class="item-buy"><div class="price"><strong>TRATOR DE CASCO</strong><small>EQUIPAMENTO DE RESGATE</small></div><button class="trade-button" id="towItemButton">COMPRAR</button></div>`;
@@ -39,7 +39,19 @@
 
   function status(message) {
     const node = document.querySelector('#stationMessage');
-    if (node) node.textContent = message;
+    if (node) {
+      node.textContent = message;
+      if (stationScreen?.classList.contains('open')) {
+        node.hidden = false;
+        node.classList.add('market-feedback-active');
+        node.classList.toggle('market-feedback-error', /saldo|faltam|compra nao realizada|ferro insuficiente/i.test(message));
+        clearTimeout(window.marketFeedbackTimer);
+        window.marketFeedbackTimer = setTimeout(() => {
+          node.classList.remove('market-feedback-active', 'market-feedback-error');
+          node.hidden = true;
+        }, 6500);
+      }
+    }
     const wreckMessage = document.querySelector('#wreckMessage');
     if (wreckMessage && document.querySelector('#wreckOverlay')?.classList.contains('open')) wreckMessage.textContent = message;
   }
@@ -109,7 +121,7 @@
     rescueDialog.id = 'towRescueDialog';
     rescueDialog.hidden = true;
     rescueDialog.style.cssText = 'position:fixed;inset:0;z-index:12000;background:#020b12cc;display:none;align-items:center;justify-content:center;padding:18px';
-    rescueDialog.innerHTML = '<section style="width:min(440px,100%);background:#071923;border:1px solid #62dbea;padding:22px;color:#d9f6f7;font:14px Space Mono,monospace;box-shadow:0 0 32px #39dff455"><div style="color:#74e9fa;font-size:11px;letter-spacing:.16em">PEDIDO DE RESGATE</div><h2 id="towRescueTitle" style="font-size:20px;margin:12px 0">Nave sem combust?vel</h2><p id="towRescueCopy" style="line-height:1.6"></p><div style="display:flex;gap:10px;margin-top:18px"><button type="button" id="towRescueAccept" class="ctrl">ACEITAR REBOQUE</button><button type="button" id="towRescueDecline" class="ctrl">RECUSAR</button></div></section>';
+    rescueDialog.innerHTML = '<section style="width:min(440px,100%);background:#071923;border:1px solid #62dbea;padding:22px;color:#d9f6f7;font:14px Space Mono,monospace;box-shadow:0 0 32px #39dff455"><div style="color:#74e9fa;font-size:11px;letter-spacing:.16em">PEDIDO DE RESGATE</div><h2 id="towRescueTitle" style="font-size:20px;margin:12px 0">Nave sem combustível</h2><p id="towRescueCopy" style="line-height:1.6"></p><div style="display:flex;gap:10px;margin-top:18px"><button type="button" id="towRescueAccept" class="ctrl">ACEITAR REBOQUE</button><button type="button" id="towRescueDecline" class="ctrl">RECUSAR</button></div></section>';
     document.body.append(rescueDialog);
     return rescueDialog;
   }
@@ -122,7 +134,7 @@
     try {
       await socialRequest('tow-rescue-response', { request_id: id, accept });
       handledRescueRequests.add(id); visibleRescueRequest = 0; rescueDialog.hidden = true; rescueDialog.style.display = 'none';
-      status(accept ? 'Resgate aceito. Sua nave ser? levada at? a esta??o indicada.' : 'Pedido de reboque recusado.');
+      status(accept ? 'Resgate aceito. Sua nave será levada até a estação indicada.' : 'Pedido de reboque recusado.');
       await poll();
     } catch (error) {
       status(error.message);
@@ -147,7 +159,7 @@
       if (request && (!visibleRescueRequest || visibleRescueRequest !== Number(request.id))) {
         visibleRescueRequest = Number(request.id);
         rescueDialog.querySelector('#towRescueTitle').textContent = `Reboque solicitado por ${request.tugUsername}`;
-        rescueDialog.querySelector('#towRescueCopy').textContent = `Sua nave est? sem combust?vel. Aceitar levar? a nave at? ${request.station} em aproximadamente ${Math.ceil(Number(request.duration) / 60)} min.`;
+        rescueDialog.querySelector('#towRescueCopy').textContent = `Sua nave está sem combustível. Aceitar levará a nave até ${request.station} em aproximadamente ${Math.ceil(Number(request.duration) / 60)} min.`;
         rescueDialog.hidden = false; rescueDialog.style.display = 'flex';
       }
       for (const completed of data.completedRescues || []) {
@@ -156,7 +168,7 @@
         completedRescueIds.add(id);
         player.x = Number(completed.x) + 180; player.z = Number(completed.z) + 140; player.speed = 0;
         if (typeof savePosition === 'function') savePosition();
-        status('Reboque conclu?do. Sua nave chegou ? esta??o espacial.');
+        status('Reboque concluído. Sua nave chegou ? estação espacial.');
       }
       lastPoll = performance.now();
     } catch (error) {

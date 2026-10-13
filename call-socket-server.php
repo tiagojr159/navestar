@@ -89,11 +89,11 @@ while (true) {
             $other=(int)$call['caller_id']===$uid?(int)$call['callee_id']:(int)$call['caller_id'];
             if ($type==='ring' || $type==='state') {
                 if ($type==='ring' && ($uid!==(int)$call['caller_id'] || $call['status']!=='ringing' || !isFriend($db,$uid,$other))) continue;
-                deliverToUser($clients,$other,['type'=>$type==='ring'?'call_invite':'call_state','callId'=>$callId,'status'=>$call['status'],'callerId'=>(int)$call['caller_id'],'callerName'=>$call['caller_name']]);
+                deliverToUser($clients,$other,['type'=>$type==='ring'?'call_invite':'call_state','callId'=>$callId,'status'=>$call['status'],'callerId'=>(int)$call['caller_id'],'callerName'=>$call['caller_name'],'video'=>!empty($message['video'])]);
             } elseif ($type==='signal') {
                 $signalType=(string)($message['signalType']??''); $payload=$message['payload']??null;
                 if (!in_array($call['status'],['ringing','accepted'],true) || !isFriend($db,$uid,$other) || !in_array($signalType,['offer','answer','ice'],true) || !is_array($payload)) { wsSend($stream,['type'=>'error','message'=>'Sinal de chamada inválido.']); continue; }
-                // Mantém um sinal recuperável caso o destinatário esteja reconectando.
+                // Mantém um sinal recuperável caso o destinatário estejá reconectando.
                 $save=$db->prepare('INSERT INTO call_signals (call_id,sender_id,recipient_id,signal_type,payload) VALUES (?,?,?,?,?)');
                 $save->execute([$callId,$uid,$other,$signalType,json_encode($payload,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)]);
                 deliverToUser($clients,$other,['type'=>'signal','callId'=>$callId,'signalType'=>$signalType,'payload'=>$payload]);

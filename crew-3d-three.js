@@ -1,13 +1,15 @@
 (function(){
   window.createStationScene3D=function(container){
-    const canvas=document.createElement('canvas');canvas.className='crew-3d-canvas';canvas.setAttribute('aria-label','Interior 3D da estaÃƒÂ§ÃƒÂ£o espacial');container.prepend(canvas);
+    const canvas=document.createElement('canvas');canvas.className='crew-3d-canvas';canvas.setAttribute('aria-label','Interior 3D da estação espacial');container.prepend(canvas);
     let currentData={},runtime=null,active=false,yaw=0,pitch=.14,onSelect=()=>{};
     const queuedPosition={x:50,z:66.5};
     function worldPosition(roomX,roomZ){return{x:(Number(roomX)-50)*.244,z:(Number(roomZ)-66.5)*.434}}
     async function initialize(){
       let THREE,lastError;
-      for(const url of ['https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js','https://unpkg.com/three@0.161.0/build/three.module.js']){try{THREE=await import(url);break}catch(error){lastError=error}}
-      if(!THREE)throw lastError||new Error('Three.js indisponÃƒÂ­vel');
+      const baseScript=document.currentScript?.src||document.querySelector('script[src*="crew-3d-three.js"]')?.src||window.location.href;
+      const localThree=new URL('three.module.js',new URL('.',baseScript)).href;
+      for(const url of [localThree,'https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js','https://unpkg.com/three@0.161.0/build/three.module.js']){try{THREE=await import(url);break}catch(error){lastError=error}}
+      if(!THREE)throw lastError||new Error('Three.js indisponível');
       const rect=container.getBoundingClientRect(),width=Math.max(1,rect.width),height=Math.max(1,rect.height);
       const $=id=>document.getElementById(id);
   const scene = new THREE.Scene();
@@ -23,7 +25,7 @@
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   // -----------------------------------------------------------------
-  // CONFIGURAÃƒâ€¡Ãƒâ€¢ES, MATERIAIS E FERRAMENTAS DE MODELAGEM
+  // CONFIGURAÇÕES, MATERIAIS E FERRAMENTAS DE MODELAGEM
   // -----------------------------------------------------------------
   const ROOM={halfW:11.15,front:-18.10,back:64.35,height:7.8};
   const palette={cyan:0x45dfff,blue:0x287fed,orange:0xffa258,white:0xd8f5ff,green:0x69ffd8};
@@ -39,7 +41,7 @@
   const rnd=rand(271828);
   function strokePanel(c,x,y,w,h,color='rgba(67,225,255,.4)',fill='rgba(0,23,41,.9)'){c.fillStyle=fill;c.fillRect(x,y,w,h);c.strokeStyle=color;c.lineWidth=3;c.strokeRect(x+.5,y+.5,w-1,h-1)}
 
-  // Ambiente de reflexÃƒÂµes gerado por cÃƒÂ³digo: melhora o metal sem HDR externo.
+  // Ambiente de reflexões gerado por código: melhora o metal sem HDR externo.
   const env=textTexture(1024,512,(c,w,h)=>{
     let grad=c.createLinearGradient(0,0,0,h);grad.addColorStop(0,'#09111d');grad.addColorStop(.35,'#617b9b');grad.addColorStop(.50,'#142b43');grad.addColorStop(.78,'#426179');grad.addColorStop(1,'#080e19');c.fillStyle=grad;c.fillRect(0,0,w,h);
     for(let i=0;i<22;i++){const x=rnd()*w;const y=110+rnd()*195;c.fillStyle=i%4?'rgba(124,212,255,.6)':'rgba(255,187,109,.85)';c.fillRect(x,y,1+rnd()*8,4+rnd()*47)}
@@ -49,7 +51,7 @@
   light(-6.5,6,-10,0x3aa6ff,32,17);light(6.4,6,-4,0x68c7ff,23,16);light(-5,6,12,0xff974c,16,12);light(7,6,10,0x33d7ff,18,13);
 
   // -----------------------------------------------------------------
-  // PISO METÃƒÂLICO, JUNTAS, REFLEXOS E CAMINHOS ILUMINADOS
+  // PISO METÁLICO, JUNTAS, REFLEXOS E CAMINHOS ILUMINADOS
   // -----------------------------------------------------------------
   box(0,-.32,0,22.65,.68,37.65,M.black);
   const tiles=new THREE.InstancedMesh(new THREE.BoxGeometry(2.07,.06,2.18),M.tile,10*16);
@@ -123,7 +125,7 @@
   box(0,6.42,18.10,5.25,.035,.04,M.cyan,scene,false);
 
   // -----------------------------------------------------------------
-  // JANELA PANORÃƒâ€šMICA: VÃƒÆ’O REAL, VIDRO, MOLDURA, PROTEÃƒâ€¡ÃƒÆ’O
+  // JANELA PANORÂMICA: VÃO REAL, VIDRO, MOLDURA, PROTEÇÃO
   // -----------------------------------------------------------------
   const WZ=-18.05;
   box(0,7.08,WZ,21.85,1.46,.74,M.shell);
@@ -154,7 +156,7 @@
   for(const x of [-9.3,9.3])box(x,2.12,-17.18,.85,.17,.6,M.shell);
 
   // -----------------------------------------------------------------
-  // FUNDO ESPACIAL TOTALMENTE PROCEDURAL (nÃƒÂ£o usa imagem externa)
+  // FUNDO ESPACIAL TOTALMENTE PROCEDURAL (não usa imagem externa)
   // -----------------------------------------------------------------
   const starsCanvas=textTexture(2048,1024,(c,w,h)=>{
     let bg=c.createLinearGradient(0,0,w,h);bg.addColorStop(0,'#010611');bg.addColorStop(.3,'#020a1b');bg.addColorStop(.68,'#050b24');bg.addColorStop(1,'#01050e');c.fillStyle=bg;c.fillRect(0,0,w,h);
@@ -171,7 +173,7 @@
     c.fillStyle='#03111f';c.fillRect(0,0,w,h);strokePanel(c,16,15,w-32,h-30,'rgba(40,186,240,.8)','rgba(4,20,38,.96)');
     const grd=c.createLinearGradient(0,0,w,0);grd.addColorStop(0,'#0c4370');grd.addColorStop(1,'#061e33');c.fillStyle=grd;c.fillRect(35,34,w-70,122);
     c.font='bold 57px monospace';c.fillStyle='#70f0ff';c.textAlign='center';c.shadowColor='#18baff';c.shadowBlur=15;c.fillText('NAVES ATRACADAS',w/2,111);c.shadowBlur=0;
-    c.font='25px monospace';c.fillStyle='#639eb6';c.fillText('TRÃƒÂFEGO LOCAL / ESTAÃƒâ€¡ÃƒÆ’O',w/2,201);
+    c.font='25px monospace';c.fillStyle='#639eb6';c.fillText('TRÁFEGO LOCAL / ESTAÇÃO',w/2,201);
     c.fillStyle='#0f3855';c.fillRect(35,230,w-70,49);c.font='bold 27px monospace';c.textAlign='left';c.fillStyle='#94f7ff';c.fillText('NAVE / REGISTRO',52,264);c.fillText('PILOTO',500,264);c.fillText('ESTADO',803,264);
     const rows=(ships||[]).slice(0,8);
     if(!rows.length){c.fillStyle='#0b1e30';c.fillRect(36,292,950,590);c.font='bold 33px monospace';c.textAlign='center';c.fillStyle='#8dc6d5';c.fillText('NENHUMA NAVE ATRACADA',w/2,590)}
@@ -180,7 +182,7 @@
     c.fillStyle='#0b4565';c.fillRect(35,952,954,94);c.font='bold 39px monospace';c.textAlign='center';c.fillStyle='#8ef9ff';c.fillText('NAVES NO HANGAR: '+String((ships||[]).length).padStart(2,'0'),w/2,1012);
     c.font='24px monospace';c.fillStyle='#5fa8c4';c.fillText('SISTEMA DE DOCA / '+String((ships||[]).filter(ship=>ship.active).length).padStart(2,'0')+' ATIVAS',w/2,1112);
     for(let i=0;i<16;i++){c.fillStyle=i<(ships||[]).length?'#62edbb':'#227a99';c.fillRect(75+i*55,1144,39,23)}
-    c.textAlign='left';c.font='18px monospace';c.fillStyle='#5f93ac';c.fillText('SISTEMA DE TRÃƒÂFEGO AEROESPACIAL Ã‚Â· V 07.2',43,1214);
+    c.textAlign='left';c.font='18px monospace';c.fillStyle='#5f93ac';c.fillText('SISTEMA DE TRÁFEGO AEROESPACIAL · V 07.2',43,1214);
   }
   const boardTex=textTexture(1024,1250,(c,w,h)=>drawDockBoard(c,w,h,[]));
   function refreshDockBoard(ships){drawDockBoard(boardTex.image.getContext('2d'),1024,1250,ships);boardTex.needsUpdate=true}
@@ -193,7 +195,7 @@
   light(-8.9,5.6,-9.2,0x138fff,6.6,7);
 
   // -----------------------------------------------------------------
-  // MOBILIÃƒÂRIO, BANCOS, QUIOSQUES E PLANTAS
+  // MOBILIÁRIO, BANCOS, QUIOSQUES E PLANTAS
   // -----------------------------------------------------------------
   const obstacles=[];
   function collider(x,z,halfX,halfZ){obstacles.push({minX:x-halfX,maxX:x+halfX,minZ:z-halfZ,maxZ:z+halfZ})}
@@ -209,8 +211,8 @@
   const kioskTex=textTexture(512,640,(c,w,h)=>{
     c.fillStyle='#061629';c.fillRect(0,0,w,h);c.fillStyle='#0e4263';c.fillRect(25,24,w-50,65);c.fillStyle='#8bf7ff';c.textAlign='center';c.font='bold 32px monospace';c.fillText('ACESSO DIGITAL',w/2,66);
     c.strokeStyle='#3baed5';c.strokeRect(26,118,w-52,445);c.font='25px monospace';c.textAlign='left';
-    for(let i=0;i<6;i++){c.fillStyle=i%2?'#5aa7c9':'#c0f9ff';c.fillText(['CHECK-IN','SUA POSIÃƒâ€¡ÃƒÆ’O','MAPA DE DOCA','NAVEGADORES','SISTEMAS','SEGURANÃƒâ€¡A'][i],47,160+i*60);c.fillStyle='#26baeb';c.fillRect(37,177+i*60,424,2)}
-    c.fillStyle='#5affe2';c.fillRect(40,578,432,25);c.fillStyle='#0b2532';c.textAlign='center';c.font='bold 18px monospace';c.fillText('SERVIÃƒâ€¡O OPERACIONAL',w/2,598);
+    for(let i=0;i<6;i++){c.fillStyle=i%2?'#5aa7c9':'#c0f9ff';c.fillText(['CHECK-IN','SUA POSIÇÃO','MAPA DE DOCA','NAVEGADORES','SISTEMAS','SEGURANÇA'][i],47,160+i*60);c.fillStyle='#26baeb';c.fillRect(37,177+i*60,424,2)}
+    c.fillStyle='#5affe2';c.fillRect(40,578,432,25);c.fillStyle='#0b2532';c.textAlign='center';c.font='bold 18px monospace';c.fillText('SERVIÇO OPERACIONAL',w/2,598);
   });
   function kiosk(x,z,side){
     const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=side===-1?Math.PI/2:-Math.PI/2;scene.add(g);
@@ -238,22 +240,22 @@
     collider(x,z,.68,.68);
   }
   for(const p of [[-9.58,-14.6],[9.52,-14.6],[-9.62,16.3],[9.55,16.2],[-9.65,-1.7],[9.65,7.35]])plant(...p);
-  // Colunas de serviÃƒÂ§o, placas ambientais e faixa informativa de rodapÃƒÂ©.
+  // Colunas de serviço, placas ambientais e faixa informativa de rodapé.
   for(const x of [-10.5,10.5])for(const z of [-15.9,16.6]){
     box(x,3.68,z,.53,6.2,.48,M.edge);
     box(x+(x<0?.35:-.35),4.35,z,.042,4.2,.10,M.blue,scene,false);
   }
   const wallNotice=textTexture(768,190,(c,w,h)=>{
     c.fillStyle='#071b2e';c.fillRect(0,0,w,h);c.strokeStyle='#43c6f2';c.lineWidth=5;c.strokeRect(3,3,w-6,h-6);
-    c.fillStyle='#7febff';c.textAlign='center';c.font='bold 45px monospace';c.fillText('SETOR PANORÃƒâ€šMICO',w/2,74);
-    c.fillStyle='#e4b478';c.font='25px monospace';c.fillText('OBSERVATÃƒâ€œRIO 07  /  ABERTO',w/2,131);
+    c.fillStyle='#7febff';c.textAlign='center';c.font='bold 45px monospace';c.fillText('SETOR PANORÂMICO',w/2,74);
+    c.fillStyle='#e4b478';c.font='25px monospace';c.fillText('OBSERVATÓRIO 07  /  ABERTO',w/2,131);
   });
   const notice=new THREE.Mesh(new THREE.PlaneGeometry(3.75,.95),new THREE.MeshBasicMaterial({map:wallNotice,toneMapped:false}));notice.position.set(5.7,5.28,17.65);notice.rotation.y=Math.PI;scene.add(notice);
-  // ColisÃƒÂµes: vidro e paredes delimitam completamente a circulaÃƒÂ§ÃƒÂ£o.
-  // O espaÃƒÂ§o central permanece livre para explorar a sala inteira.
+  // Colisões: vidro e paredes delimitam completamente a circulação.
+  // O espaço central permanece livre para explorar a sala inteira.
 
   // -----------------------------------------------------------------
-  // PERSONAGEM: ROBÃƒâ€ LOW-POLY ANIMADO / TERCEIRA PESSOA
+  // PERSONAGEM: ROBÔ LOW-POLY ANIMADO / TERCEIRA PESSOA
   // -----------------------------------------------------------------
   // Open corridor and a second connected room built with the station modules.
   const extensionCount=3*7+10*13;
@@ -296,6 +298,7 @@
   bench(-8.35,41.6,-1);bench(8.35,55,1);bench(-8.35,59.2,-1);bench(8.35,36.8,1);
   kiosk(-9.28,48,-1);kiosk(9.28,57.2,1);plant(-9.62,61.7);plant(9.62,35.8);
 
+  const stationGeometry=scene.children.slice();
   const robot=new THREE.Group();robot.position.set(0,0,7.6);scene.add(robot);
   const avatarMaterials=new Map();
   const avatarHelpers={
@@ -319,24 +322,287 @@
   const glowFoot=new THREE.PointLight(0x53e6e6,1.1,2.3,2);glowFoot.position.set(0,.45,-.5);robot.add(glowFoot);
   setAvatar(robot,'captain',true);
 
+  // CABINE DE PASSAGEIROS: cenário independente, mantendo os mesmos avatares
+  // e contratos de movimento da aplicação original.
+  let passengerMode=false,passengerWorld=null,passengerPilot=null,passengerPilotModel=null;
+  const cabinColliders=[];
+  const cabinScale={x:.76,z:.65};
+  const cabinDims={halfW:10.4*cabinScale.x,front:-16.6*cabinScale.z,back:16.6*cabinScale.z};
+  function cabinCollider(x,z,w,d){x*=cabinScale.x;z*=cabinScale.z;w*=cabinScale.x;d*=cabinScale.z;cabinColliders.push({minX:x-w/2,maxX:x+w/2,minZ:z-d/2,maxZ:z+d/2})}
+  function cabinPosition(roomX,roomZ){
+    const mapped=mapRoom(roomX,roomZ);
+    return {x:THREE.MathUtils.clamp(mapped.x*cabinScale.x,-9.7*cabinScale.x,9.7*cabinScale.x),z:THREE.MathUtils.clamp(mapped.z*cabinScale.z,-15.2*cabinScale.z,15.2*cabinScale.z)};
+  }
+  function buildPassengerCabin(){
+    if(passengerWorld)return;
+    passengerWorld=new THREE.Group();passengerWorld.name='PASSENGER_CARGO_CABIN';passengerWorld.scale.set(cabinScale.x,1,cabinScale.z);scene.add(passengerWorld);
+    const root=passengerWorld;
+    root.add(new THREE.HemisphereLight(0xa3d8ff,0x2a3441,2.35));
+    const cabinFill=new THREE.DirectionalLight(0xc9e7ff,2.1);cabinFill.position.set(1,7,14);root.add(cabinFill);
+    const wallTexture=new THREE.TextureLoader().load('assets/textures/cabin-wall-v1.png');
+    wallTexture.colorSpace=THREE.SRGBColorSpace;
+    wallTexture.anisotropy=renderer.capabilities.getMaxAnisotropy();
+    const wallDecalMaterial=new THREE.MeshStandardMaterial({map:wallTexture,metalness:.36,roughness:.48,side:THREE.DoubleSide});
+    const seatTexture=new THREE.TextureLoader().load('assets/textures/cabin-seat-v1.png');
+    seatTexture.colorSpace=THREE.SRGBColorSpace;
+    seatTexture.anisotropy=renderer.capabilities.getMaxAnisotropy();
+    const seatSurfaceMaterial=new THREE.MeshStandardMaterial({map:seatTexture,roughness:.84,metalness:.12,side:THREE.DoubleSide});
+    const hull=mat(0x101e2d,.78,.34),panel=mat(0x243a50,.68,.36),steel=mat(0x405a70,.82,.29),dark=mat(0x07121f,.53,.48);
+    const seatMat=mat(0x26313c,.2,.73),seatTrim=mat(0x687986,.8,.3),floorMat=mat(0x263d55,.73,.36);
+    const crateMat=mat(0x344454,.74,.42),yellow=mat(0xc48a24,.63,.35);
+    const makeBox=(x,y,z,w,h,d,m)=>box(x,y,z,w,h,d,m,root);
+    const stripe=(x,y,z,w,h,d,m)=>box(x,y,z,w,h,d,m,root,false);
+    function lamp(x,y,z,color,power,range){const L=new THREE.PointLight(color,power,range,2);L.position.set(x,y,z);root.add(L)}
+    function beam(a,b,r=.13,m=steel){return tube(a,b,r,m,root,8)}
+    // Piso de painéis quadrados profundos, juntas e trilhos iluminados.
+    makeBox(0,-.28,0,21.2,.55,34.5,dark);
+    for(let ix=-6;ix<=6;ix++)for(let iz=-10;iz<=10;iz++){
+      const x=ix*1.54,z=iz*1.56;
+      makeBox(x,.015,z,1.49,.055,1.50,(ix+iz)%5===0?panel:floorMat);
+      for(const sx of [-.62,.62])for(const sz of [-.62,.62]){
+        const screw=new THREE.Mesh(new THREE.CylinderGeometry(.027,.027,.012,6),steel);
+        screw.position.set(x+sx,.053,z+sz);root.add(screw);
+      }
+    }
+    const floorTexture=new THREE.TextureLoader().load('assets/textures/cabin-floor-v1.png');
+    floorTexture.wrapS=floorTexture.wrapT=THREE.RepeatWrapping;
+    floorTexture.repeat.set(2.5,4.4);
+    floorTexture.colorSpace=THREE.SRGBColorSpace;
+    floorTexture.anisotropy=renderer.capabilities.getMaxAnisotropy();
+    const floorSurface=new THREE.Mesh(new THREE.PlaneGeometry(20.0,32.5),new THREE.MeshStandardMaterial({map:floorTexture,metalness:.48,roughness:.52}));
+    floorSurface.rotation.x=-Math.PI/2;floorSurface.position.y=.061;floorSurface.receiveShadow=true;root.add(floorSurface);
+    for(const x of [-2.05,2.05]){
+      stripe(x,.081,0,.085,.026,32.7,M.orange);
+      stripe(x+(x<0?-.14:.14),.076,0,.032,.02,32.7,M.cyan);
+    }
+    for(let z=-14;z<=14;z+=3.9){
+      for(const x of [-4.3,4.3]){
+        makeBox(x,.079,z,1.2,.03,1.10,dark);
+        for(let i=0;i<8;i++)stripe(x-.47+i*.135,.104,z,.045,.016,.94,steel);
+      }
+    }
+    // Laterais angulares segmentadas e corredores de luz.
+    for(const side of [-1,1]){
+      const X=side*10.53;
+      makeBox(X,3.68,0,.42,7.4,34,hull);
+      stripe(side*10.25,.78,0,.07,.10,33,M.orange);
+      stripe(side*10.25,5.95,0,.08,.10,33,M.cyan);
+      for(let z=-15;z<16;z+=3.2){
+        makeBox(side*10.27,3.85,z,.14,4.55,2.82,panel);
+        makeBox(side*10.12,3.83,z,.10,2.58,1.95,hull);
+        makeBox(side*10.035,3.7,z,.05,1.55,1.22,steel);
+        makeBox(side*10.00,3.72,z,.028,1.32,1.04,dark);
+        const wallDecal=new THREE.Mesh(new THREE.PlaneGeometry(2.68,1.52),wallDecalMaterial);
+        wallDecal.rotation.y=side<0?Math.PI/2:-Math.PI/2;
+        wallDecal.position.set(side*9.93,4.3,z);root.add(wallDecal);
+        for(const y of [2.74,4.64])for(const dz of [-.72,.72]){
+          const bolt=new THREE.Mesh(new THREE.CylinderGeometry(.036,.036,.016,8),steel);
+          bolt.rotation.z=Math.PI/2;bolt.position.set(side*9.95,y,z+dz);root.add(bolt);
+        }
+        for(let line=0;line<5;line++)stripe(side*9.96,4.15-line*.12,z,.035,.025,.65,seatTrim);
+        stripe(side*9.98,6.03,z,.08,.13,1.80,M.cyan);
+        stripe(side*9.95,1.65,z,.08,.065,1.8,M.orange);
+        makeBox(side*9.87,3.8,z-1.45,.27,5.8,.28,steel);
+        stripe(side*9.7,4.05,z-1.45,.035,3.45,.07,M.blue);
+        // Peças chanfradas simuladas por vigas diagonais.
+        beam([side*10.1,5.9,z-1.46],[side*7.9,7.12,z-1.46],.23,steel);
+      }
+      cabinCollider(X,0,.6,34);
+    }
+    // Teto industrial com módulos profundos, lâmpadas brancas e âmbar.
+    makeBox(0,7.4,0,21.2,.45,34.4,hull);
+    for(let z=-15;z<=15;z+=3.15){
+      makeBox(0,7.05,z,20.7,.43,.34,steel);
+      makeBox(0,7.08,z,5.0,.23,2.44,dark);
+      for(const x of [-8.15,-5.35,5.35,8.15]){
+        stripe(x,6.99,z+.55,.36,.085,1.53,x<0?M.cyan:M.orange);
+        makeBox(x,7.19,z-.5,.75,.24,.88,panel);
+      }
+      lamp(0,6.6,z,0x73bbff,3.3,9);
+    }
+    for(const side of [-1,1])stripe(side*9.12,7.08,0,.065,.04,33,M.blue);
+    // Fundo do compartimento, estrutura de acesso à nave.
+    makeBox(0,3.7,17,21.2,7.4,.6,hull);
+    makeBox(0,3.5,16.56,4.3,5.5,.13,panel);
+    stripe(0,6.26,16.45,3.85,.075,.1,M.cyan);
+    cabinCollider(0,17,21,.8);
+    // Frente: abertura panorâmica grande acima do painel de instrumentos.
+    makeBox(0,1.12,-17,21.2,2.24,.9,hull);
+    makeBox(0,6.86,-17,21.2,1.3,.86,hull);
+    for(const side of [-1,1]){
+      makeBox(side*9.6,4.3,-16.95,.70,5.3,.9,steel);
+      beam([side*9.4,6.55,-16.9],[side*7.45,7.12,-16.9],.32,steel);
+      stripe(side*9.12,4.15,-16.38,.05,3.5,.06,M.cyan);
+    }
+    stripe(0,2.19,-16.53,19.0,.10,.18,M.cyan);
+    stripe(0,6.27,-16.53,18.8,.08,.16,M.blue);
+    // Vidro muito sutil. Nunca encobrir o espaço.
+    const glass=new THREE.Mesh(new THREE.PlaneGeometry(18.8,4.02),new THREE.MeshPhysicalMaterial({color:0x78cfff,transparent:true,opacity:.028,roughness:.04,depthWrite:false,side:THREE.DoubleSide}));
+    glass.position.set(0,4.22,-16.67);root.add(glass);
+    const exteriorTexture=new THREE.TextureLoader().load('assets/textures/cabin-window-v1.png');
+    exteriorTexture.colorSpace=THREE.SRGBColorSpace;
+    exteriorTexture.wrapT=THREE.ClampToEdgeWrapping;
+    exteriorTexture.repeat.set(1,.52);
+    exteriorTexture.offset.set(0,.30);
+    exteriorTexture.anisotropy=renderer.capabilities.getMaxAnisotropy();
+    const exterior=new THREE.Mesh(new THREE.PlaneGeometry(18.8,4.18),new THREE.MeshBasicMaterial({map:exteriorTexture,toneMapped:false}));
+    exterior.position.set(0,4.22,-17.35);root.add(exterior);
+    // Espaço externo procedural, planeta com atmosfera e milhares de estrelas.
+    const random=rand(773312);
+    const pts=[];
+    for(let i=0;i<1250;i++)pts.push((random()-.5)*125,(random()-.5)*65,-28-random()*90);
+    const sg=new THREE.BufferGeometry();sg.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
+    root.add(new THREE.Points(sg,new THREE.PointsMaterial({color:0xd1e9ff,size:.23,transparent:true,opacity:.86})));
+    const planetTexture=textTexture(1024,512,(c,w,h)=>{
+      c.fillStyle='#145e93';c.fillRect(0,0,w,h);
+      const cloudRandom=rand(91307);
+      for(let i=0;i<160;i++){
+        const x=cloudRandom()*w,y=cloudRandom()*h,r=10+cloudRandom()*95;
+        c.fillStyle=i%4===0?'rgba(234,249,255,.28)':'rgba(71,173,211,.26)';
+        c.beginPath();c.ellipse(x,y,r,r*(.16+cloudRandom()*.28),cloudRandom()*.8,0,Math.PI*2);c.fill();
+      }
+      for(let i=0;i<22;i++){
+        c.strokeStyle='rgba(226,246,255,.2)';c.lineWidth=1+cloudRandom()*6;
+        const x=cloudRandom()*w,y=cloudRandom()*h;
+        c.beginPath();c.moveTo(x,y);c.bezierCurveTo(x+40,y-12,x+95,y+20,x+155,y-7);c.stroke();
+      }
+    });
+    const planetMat=new THREE.MeshStandardMaterial({map:planetTexture,emissive:0x0e4265,emissiveIntensity:.5,roughness:1});
+    const planet=new THREE.Mesh(new THREE.SphereGeometry(22,40,30),planetMat);
+    planet.position.set(-15,-7,-52);root.add(planet);
+    const halo=new THREE.Mesh(new THREE.SphereGeometry(22.5,40,30),new THREE.MeshBasicMaterial({color:0x72bfff,side:THREE.BackSide,transparent:true,opacity:.19,depthWrite:false}));halo.position.copy(planet.position);root.add(halo);
+    for(let i=0;i<19;i++){
+      const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(.28+random()*.65),mat(0x647481,.12,.85));
+      rock.position.set(6+random()*15,4+random()*9,-29-random()*20);root.add(rock);
+    }
+    // Dez assentos de passageiros: cinco de cada lado, voltados para o corredor.
+    function seat(x,z,side){
+      const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=0;g.scale.setScalar(1.22);root.add(g);
+      box(0,.36,0,1.63,.45,1.52,steel,g);
+      box(0,.78,-.09,1.55,.24,1.40,seatMat,g);
+      box(0,1.76,.59,1.61,1.82,.35,seatMat,g);
+      const upholstery=new THREE.Mesh(new THREE.PlaneGeometry(1.48,1.92),seatSurfaceMaterial);
+      upholstery.position.set(0,1.75,.79);g.add(upholstery);
+      box(0,2.62,.61,1.18,.45,.30,panel,g);
+      box(0,1.67,.355,1.35,1.30,.11,mat(0x33424f,.2,.78),g);
+      for(const sx of [-.31,.31])box(sx,1.60,.275,.47,1.04,.09,seatMat,g);
+      box(0,2.35,.29,.95,.13,.07,seatTrim,g,false);
+      for(const sx of [-.52,.52])box(sx,1.63,.285,.045,1.15,.035,seatTrim,g,false);
+      box(0,1.78,.282,.70,.06,.04,dark,g,false);
+      box(0,2.58,.41,.74,.10,.07,seatTrim,g,false);
+      for(const sx of [-.88,.88]){
+        box(sx,1.05,-.09,.18,.18,1.55,seatTrim,g);
+        box(sx,.65,-.58,.18,.65,.22,steel,g);
+        box(sx,1.16,-.1,.22,.065,1.4,yellow,g,false);
+      }
+      box(0,.74,-.82,.55,.045,.04,M.orange,g,false);
+      cabinCollider(x,z,2.35,2.10);
+    }
+    for(const z of [-8.2,-4.4,-.6,3.2,7.0]){seat(-7.0,z,-1);seat(7.0,z,1)}
+    // Caixas modulares de carga, alças, fechaduras e reforços.
+    function crate(x,z,w,h,d,gold){
+      const g=new THREE.Group();g.position.set(x,h/2,z);root.add(g);
+      box(0,0,0,w,h,d,gold?yellow:crateMat,g);
+      const crateFront=new THREE.MeshStandardMaterial({color:gold?0xb4822d:0x43576b,emissive:gold?0x6e4710:0x1b344c,emissiveIntensity:.35,metalness:.55,roughness:.42});
+      box(0,0,d/2+.02,w-.40,h-.32,.05,crateFront,g,false);
+      for(const sx of [-1,1])box(sx*(w/2-.10),0,0,.23,h+.035,d+.035,dark,g);
+      for(const sy of [-1,1])box(0,sy*(h/2-.10),0,w+.035,.19,d+.035,steel,g);
+      for(const sx of [-.55,.55])box(sx*(w/2),0,d/2+.065,.055,h-.42,.025,dark,g,false);
+      box(0,h*.23,d/2+.068,w-.57,.05,.028,yellow,g,false);
+      box(0,.06,d/2+.04,.49,.23,.07,dark,g);
+      box(0,.06,d/2+.083,.21,.065,.025,M.cyan,g,false);
+      cabinCollider(x,z,w+.2,d+.2);
+    }
+    crate(-8.15,11.1,3.2,1.4,2.4,true);
+    crate(8.10,11.0,3.3,1.25,2.4,false);
+    crate(-8.1,14.15,3.15,1.15,2.0,false);
+    crate(8.15,14.1,3.15,1.35,2.2,true);
+    crate(-5.5,4.8,2.4,1.4,2.1,true);
+    crate(5.5,4.8,2.4,1.35,2.1,false);
+    // Equipamento de emergência preso à lateral junto ao cockpit.
+    const extinguisher=new THREE.Mesh(new THREE.CylinderGeometry(.22,.22,1.35,12),mat(0xb52420,.3,.43));
+    extinguisher.position.set(-9.5,3.55,-11.8);root.add(extinguisher);
+    makeBox(-9.5,4.31,-11.8,.30,.14,.30,steel);
+    stripe(-9.5,3.54,-11.52,.34,.12,.035,M.white);
+    // Consoles de cockpit, telas de navegação procedurais e assento.
+    makeBox(0,1.7,-14.9,16.5,2.25,3.3,dark);
+    makeBox(0,2.78,-14.6,14.9,.22,2.1,steel);
+    const displayTexture=textTexture(512,256,(c,w,h)=>{
+      c.fillStyle='#031525';c.fillRect(0,0,w,h);
+      c.strokeStyle='#009eea';c.lineWidth=4;c.strokeRect(9,9,w-18,h-18);
+      for(let i=0;i<20;i++){c.strokeStyle=i%3?'#087dad':'#28d9ff';c.lineWidth=2;c.beginPath();c.moveTo(26+i*21,47);c.lineTo(26+i*21,65+(i*47)%120);c.stroke()}
+      c.strokeStyle='#32dcff';c.beginPath();c.arc(w*.72,h*.53,68,0,Math.PI*2);c.stroke();c.beginPath();c.arc(w*.72,h*.53,46,0,Math.PI*2);c.stroke();
+      c.fillStyle='#59f1ff';c.font='bold 21px monospace';c.fillText('ASTRA / NAV SYSTEM',30,31);
+      c.font='14px monospace';c.fillText('FLIGHT READY',29,225);
+    });
+    for(const x of [-4.05,4.05]){
+      makeBox(x,3.2,-14.08,5.4,1.75,.26,steel);
+      const monitor=new THREE.Mesh(new THREE.PlaneGeometry(5.14,1.56),new THREE.MeshBasicMaterial({map:displayTexture,toneMapped:false}));
+      monitor.position.set(x,3.2,-13.93);root.add(monitor);
+      lamp(x,3.65,-13.2,0x008bff,2.5,6);
+    }
+    makeBox(0,2.67,-13.76,2.0,.42,1.0,panel);
+    stripe(0,2.94,-13.4,1.42,.04,.38,M.cyan);
+    // Cadeira do piloto voltada à jánela (costas para passageiro).
+    makeBox(0,.65,-11.45,1.55,.53,1.48,steel);
+    makeBox(0,1.83,-11.01,2.05,2.15,.45,seatMat);
+    makeBox(0,2.88,-10.98,1.55,.52,.42,dark);
+    makeBox(0,2.35,-10.745,1.05,.13,.05,M.orange);
+    makeBox(0,1.95,-10.745,1.38,.37,.05,panel);
+    for(const sx of [-1,1])makeBox(sx*1.10,1.14,-11.44,.22,.22,1.28,steel);
+    cabinCollider(0,-11.45,2.8,2.2);
+    cabinCollider(0,-14.65,15.8,3.4);
+    // Piloto personalizado utilizando o criador de avatares já disponível.
+    passengerPilot=new THREE.Group();passengerPilot.position.set(0,.8,-11.05);passengerPilot.rotation.y=0;root.add(passengerPilot);
+    passengerPilotModel=setAvatar(passengerPilot,'pilot');passengerPilot.scale.setScalar(1.45);
+    passengerPilotModel.legs.forEach(({part})=>{part.visible=false});
+    passengerPilotModel.arms.forEach(({part})=>{part.visible=false});
+    const pilotSleeve=mat(0x172641,.3,.57),pilotGlove=mat(0x577489,.3,.55);
+    box(0,1.45,.28,.94,.92,.24,pilotSleeve,passengerPilot);
+    box(0,1.62,.415,.55,.10,.045,yellow,passengerPilot,false);
+    for(const side of [-1,1]){
+      sphere(side*1.12,2.56,-11.05,.35,pilotSleeve,root,16);
+      beam([side*1.12,2.55,-11.05],[side*1.38,2.34,-11.8],.19,pilotSleeve);
+      beam([side*1.38,2.34,-11.8],[side*1.60,2.84,-13.22],.15,pilotSleeve);
+      sphere(side*1.60,2.84,-13.22,.15,pilotGlove,root,12);
+    }
+    // Luzes de preenchimento para contrastes próximos da imagem.
+    lamp(0,5.5,-12,0x6ac8ff,10,18);
+    for(const z of [-10,-3,5,12])for(const side of [-1,1])lamp(side*8.8,5.3,z,side<0?0x3caaff:0xffb269,4.0,7);
+  }
+  function setPassengerMode(enabled){
+    const flag=!!enabled;if(passengerMode===flag)return;
+    passengerMode=flag;
+    if(flag)buildPassengerCabin();
+    for(const object of stationGeometry)object.visible=!flag;
+    if(passengerWorld)passengerWorld.visible=flag;
+    robot.visible=!flag;
+    if(flag){const p=cabinPosition(queuedPosition.x,queuedPosition.z);robot.position.set(p.x,0,p.z);yaw=0;pitch=0;}
+  }
+  function passengerCanOccupy(roomX,roomZ){
+    const p=cabinPosition(roomX,roomZ),r=.44;
+    if(p.x< -cabinDims.halfW+r||p.x>cabinDims.halfW-r||p.z<cabinDims.front+r||p.z>cabinDims.back-r)return false;
+    for(const c of cabinColliders){const x=Math.max(c.minX,Math.min(p.x,c.maxX)),z=Math.max(c.minZ,Math.min(p.z,c.maxZ));if((x-p.x)**2+(z-p.z)**2<r*r)return false}
+    return true;
+  }
   // -----------------------------------------------------------------
 
       // REFERENCE_SCENE_END
       const remoteRobots=new Map(),raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2(),clock=new THREE.Clock();let selfHeadingLoaded=false;
       let renderActive=false,frameHandle=0,lastMoveAt=0,walkPhase=0,remoteMoveAt=new Map();
       function mapRoom(roomX,roomZ){return{x:(Number(roomX)-50)*.244,z:(Number(roomZ)-66.5)*.434}}
-      function canOccupy(roomX,roomZ){const p=mapRoom(roomX,roomZ),radius=.42;if(p.x< -ROOM.halfW+radius||p.x>ROOM.halfW-radius||p.z<ROOM.front+radius||p.z>ROOM.back-radius)return false;if(p.z>17.75&&p.z<34.45&&Math.abs(p.x)>2.22)return false;for(const obstacle of obstacles){const cx=Math.max(obstacle.minX,Math.min(p.x,obstacle.maxX)),cz=Math.max(obstacle.minZ,Math.min(p.z,obstacle.maxZ));if((p.x-cx)**2+(p.z-cz)**2<radius*radius)return false}return true}
-      function syncPeople(data){const seen=new Set();for(const person of data.occupants||[]){const id=Number(person.id);if(id===Number(data.selfId)){const code=person.avatar||'captain';if(avatarIndex(code)!==avatarIndex(currentAvatarCode))setAvatar(robot,code,true);if(!selfHeadingLoaded){yaw=Number(person.roomYaw)||0;robot.rotation.y=yaw;selfHeadingLoaded=true}continue}const p=mapRoom(Number(person.roomX)||50,Number(person.roomZ)||75);seen.add(id);let avatar=remoteRobots.get(id);if(!avatar){avatar=new THREE.Group();scene.add(avatar);remoteRobots.set(id,avatar)}setAvatar(avatar,person.avatar||'captain');avatar.userData.crewPerson=person;const target=avatar.userData.target||new THREE.Vector3();target.set(p.x,0,p.z);avatar.userData.target=target;avatar.userData.roomYaw=Number(person.roomYaw)||0;remoteMoveAt.set(id,performance.now())}for(const [id,avatar] of remoteRobots){if(!seen.has(id)){scene.remove(avatar);avatar.traverse(o=>{if(o.geometry)o.geometry.dispose()});remoteRobots.delete(id);remoteMoveAt.delete(id)}}}
-      function update(data){const renderData={...data,occupants:data.passenger?.occupants||data.occupants||[],ships:data.ships||[]};board.visible=!data.isPassengerCabin;refreshDockBoard(renderData.ships);syncPeople(renderData)}
-      function setPlayerPosition(roomX,roomZ){const p=mapRoom(roomX,roomZ),dx=p.x-robot.position.x,dz=p.z-robot.position.z,distance=Math.hypot(dx,dz);if(distance>.002){lastMoveAt=performance.now();yaw=Math.atan2(-dx,-dz)}robot.position.set(p.x,0,p.z);if(robotVisual)robotVisual.rotation.y=yaw}
-      function rotateCamera(dt){const forward=new THREE.Vector3(Math.sin(yaw),0,-Math.cos(yaw)),aim=robot.position.clone().add(new THREE.Vector3(0,1.24+pitch*.4,0)).addScaledVector(forward,2.2),distance=5.55*Math.cos(pitch*.8),desiredCamera=robot.position.clone().addScaledVector(forward,-distance);desiredCamera.y=2.91+pitch*3.2;desiredCamera.x=THREE.MathUtils.clamp(desiredCamera.x,-10.32,10.32);desiredCamera.z=THREE.MathUtils.clamp(desiredCamera.z,ROOM.front+1.26,ROOM.back-1.26);if(desiredCamera.z>17.85&&desiredCamera.z<34.35)desiredCamera.x=THREE.MathUtils.clamp(desiredCamera.x,-2.65,2.65);desiredCamera.y=THREE.MathUtils.clamp(desiredCamera.y,1.9,5.7);camera.position.lerp(desiredCamera,1-Math.exp(-9*dt));camera.lookAt(aim);robot.rotation.y=yaw}
-      function resize(){const r=container.getBoundingClientRect(),w=Math.max(1,r.width),h=Math.max(1,r.height);renderer.setSize(w,h,false);renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.75));camera.aspect=w/h;camera.updateProjectionMatrix()}
-      function frame(){if(!renderActive)return;frameHandle=requestAnimationFrame(frame);const dt=Math.min(clock.getDelta()||.016,.05),now=clock.elapsedTime,moving=performance.now()-lastMoveAt<105;walkPhase+=dt*9.4;const energy=moving?1:0;if(robotVisual)robotVisual.position.y=moving?Math.abs(Math.sin(walkPhase))*.063:Math.sin(now*1.9)*.012;arms.forEach(({part,s})=>{part.rotation.x=moving?Math.sin(walkPhase+s*Math.PI/2+Math.PI/2)*.45:Math.sin(now*1.5+s)*.03});legs.forEach(({part,s})=>{part.rotation.x=moving?Math.sin(walkPhase+(s>0?Math.PI:0))*.42:0});robotShadow.material.opacity=.21+(1-energy)*.06;for(const [id,avatar] of remoteRobots){if(avatar.userData.target)avatar.position.lerp(avatar.userData.target,1-Math.exp(-12*dt));avatar.rotation.y=avatar.userData.roomYaw||0}rotateCamera(dt);renderer.render(scene,camera)}
-      function setActive(value){if(renderActive===!!value)return;renderActive=!!value;if(renderActive){resize();camera.position.set(0,3.38,robot.position.z+6.1);clock.start();frameHandle=requestAnimationFrame(frame)}else if(frameHandle)cancelAnimationFrame(frameHandle)}
+      function canOccupy(roomX,roomZ,originX=null,originZ=null){if(passengerMode)return passengerCanOccupy(roomX,roomZ);const p=mapRoom(roomX,roomZ),origin=originX===null?null:mapRoom(originX,originZ),radius=.42;if(p.x< -ROOM.halfW+radius||p.x>ROOM.halfW-radius||p.z<ROOM.front+radius||p.z>ROOM.back-radius)return false;if(p.z>17.75&&p.z<34.45&&Math.abs(p.x)>2.22)return false;for(const obstacle of obstacles){const cx=Math.max(obstacle.minX,Math.min(p.x,obstacle.maxX)),cz=Math.max(obstacle.minZ,Math.min(p.z,obstacle.maxZ));if((p.x-cx)**2+(p.z-cz)**2<radius*radius)return false}for(const avatar of remoteRobots.values()){const other=avatar.userData.target||avatar.position,dist=Math.hypot(p.x-other.x,p.z-other.z),start=origin?Math.hypot(origin.x-other.x,origin.z-other.z):Infinity;if(dist<.92&&(start>=.92||dist<start-.002))return false}return true}
+      function syncPeople(data){const seen=new Set();for(const person of data.occupants||[]){const id=Number(person.id);if(id===Number(data.selfId)){const code=person.avatar||'captain';if(avatarIndex(code)!==avatarIndex(currentAvatarCode))setAvatar(robot,code,true);if(!selfHeadingLoaded){yaw=Number(person.roomYaw)||0;robot.rotation.y=yaw;selfHeadingLoaded=true}continue}const p=passengerMode?cabinPosition(Number(person.roomX)||50,Number(person.roomZ)||75):mapRoom(Number(person.roomX)||50,Number(person.roomZ)||75);seen.add(id);let avatar=remoteRobots.get(id);if(!avatar){avatar=new THREE.Group();scene.add(avatar);remoteRobots.set(id,avatar)}setAvatar(avatar,person.avatar||'captain');avatar.userData.crewPerson=person;const target=avatar.userData.target||new THREE.Vector3();target.set(p.x,0,p.z);avatar.userData.target=target;avatar.userData.roomYaw=Number(person.roomYaw)||0;remoteMoveAt.set(id,performance.now())}for(const [id,avatar] of remoteRobots){if(!seen.has(id)){scene.remove(avatar);avatar.traverse(o=>{if(o.geometry)o.geometry.dispose()});remoteRobots.delete(id);remoteMoveAt.delete(id)}}}
+      function update(data){setPassengerMode(!!data.isPassengerCabin);if(passengerMode&&passengerPilot){const pilotCode=data.passenger?.pilotAvatar||'pilot';passengerPilotModel=setAvatar(passengerPilot,pilotCode);passengerPilotModel.legs.forEach(({part})=>{part.visible=false});passengerPilotModel.arms.forEach(({part})=>{part.visible=false});passengerPilot.userData.pilotName=data.passenger?.pilot||'Piloto'}const cabinOccupants=data.passenger?.occupants||data.occupants||[];const cockpitIds=new Set([Number(data.passenger?.pilotId)||0,Number(data.passenger?.copilotId)||0]);const renderData={...data,occupants:passengerMode?cabinOccupants.filter(person=>!cockpitIds.has(Number(person.id))):cabinOccupants,ships:data.ships||[]};board.visible=!data.isPassengerCabin;refreshDockBoard(renderData.ships);syncPeople(renderData)}
+      function setPlayerPosition(roomX,roomZ){const p=passengerMode?cabinPosition(roomX,roomZ):mapRoom(roomX,roomZ),dx=p.x-robot.position.x,dz=p.z-robot.position.z,distance=Math.hypot(dx,dz);if(distance>.002){lastMoveAt=performance.now();if(!passengerMode)yaw=Math.atan2(-dx,-dz)}robot.position.set(p.x,0,p.z);if(robotVisual)robotVisual.rotation.y=yaw}
+      function rotateCamera(dt){const forward=new THREE.Vector3(Math.sin(yaw),0,-Math.cos(yaw));if(passengerMode){const desiredCamera=robot.position.clone().add(new THREE.Vector3(0,1.72,0));const aim=desiredCamera.clone().addScaledVector(forward,4);aim.y+=pitch*3;camera.position.lerp(desiredCamera,1-Math.exp(-12*dt));camera.lookAt(aim);return}const aim=robot.position.clone().add(new THREE.Vector3(0,1.24+pitch*.4,0)).addScaledVector(forward,2.2),distance=5.55*Math.cos(pitch*.8),desiredCamera=robot.position.clone().addScaledVector(forward,-distance);desiredCamera.y=2.91+pitch*3.2;desiredCamera.x=THREE.MathUtils.clamp(desiredCamera.x,-10.32,10.32);desiredCamera.z=THREE.MathUtils.clamp(desiredCamera.z,ROOM.front+1.26,ROOM.back-1.26);if(desiredCamera.z>17.85&&desiredCamera.z<34.35)desiredCamera.x=THREE.MathUtils.clamp(desiredCamera.x,-2.65,2.65);desiredCamera.y=THREE.MathUtils.clamp(desiredCamera.y,1.9,5.7);camera.position.lerp(desiredCamera,1-Math.exp(-9*dt));camera.lookAt(aim);robot.rotation.y=yaw}
+      function resize(){const r=container.getBoundingClientRect(),w=Math.max(1,r.width),h=Math.max(1,r.height);renderer.setSize(w,h,false);renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.75));camera.aspect=w/h;camera.fov=passengerMode?THREE.MathUtils.radToDeg(2*Math.atan(Math.tan(THREE.MathUtils.degToRad(70)/2)*1.36/camera.aspect)):69;camera.updateProjectionMatrix()}
+      function frame(){if(!renderActive)return;frameHandle=requestAnimationFrame(frame);const dt=Math.min(clock.getDelta()||.016,.05),now=clock.elapsedTime,moving=performance.now()-lastMoveAt<105;walkPhase+=dt*9.4;const energy=moving?1:0;if(robotVisual)robotVisual.position.y=moving?Math.abs(Math.sin(walkPhase))*.063:Math.sin(now*1.9)*.012;arms.forEach(({part,s})=>{part.rotation.x=moving?Math.sin(walkPhase+s*Math.PI/2+Math.PI/2)*.45:Math.sin(now*1.5+s)*.03});legs.forEach(({part,s})=>{part.rotation.x=moving?Math.sin(walkPhase+(s>0?Math.PI:0))*.42:0});if(passengerMode&&passengerPilotModel){passengerPilotModel.arms.forEach(({part,s})=>{part.rotation.x=-.72+Math.sin(now*2.1+s)*.10;part.rotation.z=s*.16+Math.sin(now*1.45+s)*.045});passengerPilotModel.visual.position.y=Math.sin(now*1.8)*.008}robotShadow.material.opacity=.21+(1-energy)*.06;for(const [id,avatar] of remoteRobots){if(avatar.userData.target)avatar.position.lerp(avatar.userData.target,1-Math.exp(-12*dt));avatar.rotation.y=avatar.userData.roomYaw||0}rotateCamera(dt);renderer.render(scene,camera)}
+      function setActive(value){if(renderActive===!!value)return;renderActive=!!value;if(renderActive){resize();camera.position.set(robot.position.x,passengerMode?1.72:3.38,robot.position.z+(passengerMode?0:6.1));clock.start();frameHandle=requestAnimationFrame(frame)}else if(frameHandle)cancelAnimationFrame(frameHandle)}
       function selectPerson(event){const rect=canvas.getBoundingClientRect();pointer.set(((event.clientX-rect.left)/rect.width)*2-1,-((event.clientY-rect.top)/rect.height)*2+1);raycaster.setFromCamera(pointer,camera);const hit=raycaster.intersectObjects([...remoteRobots.values()],true)[0];if(!hit)return;let object=hit.object;while(object&&!object.userData.crewPerson)object=object.parent;if(object?.userData.crewPerson)onSelect(object.userData.crewPerson)}
-      canvas.addEventListener('click',selectPerson);
+      let lookPointer=null,dragged=false;canvas.addEventListener('pointerdown',event=>{if(event.button!==0)return;lookPointer={id:event.pointerId,x:event.clientX,y:event.clientY};dragged=false;canvas.setPointerCapture?.(event.pointerId)});canvas.addEventListener('pointermove',event=>{if(!lookPointer||lookPointer.id!==event.pointerId)return;const dx=event.clientX-lookPointer.x,dy=event.clientY-lookPointer.y;if(Math.abs(dx)+Math.abs(dy)>2)dragged=true;yaw=(yaw+dx*.006+Math.PI*3)%(Math.PI*2)-Math.PI;pitch=Math.max(-.55,Math.min(.65,pitch-dy*.004));lookPointer.x=event.clientX;lookPointer.y=event.clientY});for(const type of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(type,()=>{lookPointer=null;setTimeout(()=>{dragged=false},0)});canvas.addEventListener('click',event=>{if(!dragged)selectPerson(event)});
       const resizeObserver=new ResizeObserver(resize);resizeObserver.observe(container);
-      return{update,setPlayerPosition,canOccupy,canMove(fromX,fromZ,toX,toZ){return canOccupy(toX,toZ)},rotate(){robot.rotation.y=yaw},setActive,onSelect(callback){onSelect=callback}};
+      return{update,setPlayerPosition,canOccupy,canMove(fromX,fromZ,toX,toZ){const a=mapRoom(fromX,fromZ),b=mapRoom(toX,toZ),steps=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.z-a.z)/.12));for(let i=1;i<=steps;i++){const t=i/steps;if(!canOccupy(fromX+(toX-fromX)*t,fromZ+(toZ-fromZ)*t,fromX,fromZ))return false}return true},rotate(){robot.rotation.y=yaw},setActive,onSelect(callback){onSelect=callback}};
     }
     const ready=initialize().then(value=>{runtime=value;runtime.setPlayerPosition(queuedPosition.x,queuedPosition.z);runtime.update(currentData);runtime.setActive(active)}).catch(error=>{console.error('Falha ao carregar a sala 3D:',error);const fallback=document.createElement('div');fallback.className='crew-3d-fallback';fallback.textContent='Nao foi possivel carregar o ambiente 3D. Verifique a conexao com o CDN.';container.prepend(fallback)});
     return{update(data){currentData=data||{};if(runtime)runtime.update(currentData)},setPlayerPosition(x,z){queuedPosition.x=Number(x)||50;queuedPosition.z=Number(z)||66.5;if(runtime)runtime.setPlayerPosition(queuedPosition.x,queuedPosition.z)},getWorldPosition:worldPosition,canOccupy(x,z){return runtime?runtime.canOccupy(x,z):Number(x)>=8&&Number(x)<=92&&Number(z)>=27.1&&Number(z)<=220},canMove(fromX,fromZ,toX,toZ){return runtime?runtime.canMove(fromX,fromZ,toX,toZ):this.canOccupy(toX,toZ)},getHeading(){return yaw},rotate(yawDelta=0,pitchDelta=0){yaw=(yaw+yawDelta+Math.PI*3)%(Math.PI*2)-Math.PI;pitch=Math.max(-.55,Math.min(.65,pitch+pitchDelta));runtime?.rotate(yawDelta,pitchDelta)},setActive(value){active=!!value;runtime?.setActive(active)},onSelect(callback){onSelect=callback;runtime?.onSelect(callback)}};

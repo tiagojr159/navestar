@@ -3,7 +3,7 @@
   const api=window.crewGame.api;
   let membership=null, stream=null, busyMic=false, pollBusy=false, micDenied=false;
   const peers=new Map();
-  const hud=document.createElement('aside'); hud.id='crewVoiceHud'; hud.setAttribute('aria-live','polite'); hud.innerHTML='<span class="crew-voice-dot"></span><b>TRIPULAÇÃO</b><span class="crew-voice-state">aguardando</span><button type="button" id="crewVoiceEnable">ATIVAR MICROFONE</button><button type="button" id="crewVoiceMute" hidden>SILENCIAR</button>'; document.body.appendChild(hud);
+  const hud=document.createElement('aside'); hud.id='crewVoiceHud'; hud.setAttribute('aria-live','polite'); hud.innerHTML='<span class="crew-voice-dot"></span><b>TRIPULAÇÃO</b><span class="crew-voice-state">aguardando</span><button type="button" id="crewVoiceEnable">ATIVAR MICROFONE</button><button type="button" id="crewVoiceMute" hidden>SILENCIAR</button>'; const passengerToolbar=document.querySelector('.passenger-displays'); if(passengerToolbar){hud.classList.add('passenger-toolbar-intercom');passengerToolbar.insertBefore(hud,passengerToolbar.querySelector('.passenger-screen'))}else document.body.appendChild(hud);
   const style=document.createElement('style'); style.textContent=`
     #crewVoiceHud{position:fixed;z-index:102;right:18px;bottom:18px;display:none;align-items:center;gap:8px;pointer-events:none;padding:8px 10px;border:1px solid #3c93be;background:rgba(4,20,34,.94);box-shadow:0 0 18px #1b89ce26;color:#bceaff;font:8px 'Space Mono',monospace;letter-spacing:.06em}
     #crewVoiceHud.onboard{display:flex}#crewVoiceHud .crew-voice-dot{width:7px;height:7px;border-radius:50%;background:#73828d}#crewVoiceHud.connected .crew-voice-dot{background:#71f2bd;box-shadow:0 0 10px #71f2bd}#crewVoiceHud.connecting .crew-voice-dot{background:#ffd16b;box-shadow:0 0 9px #ffd16b}#crewVoiceHud b{color:#effaff}#crewVoiceHud .crew-voice-state{color:#86afc1}
@@ -14,7 +14,8 @@
     .dual-crew #fireWeapon:hover,.dual-crew #mineButton:not(:disabled):hover,.dual-crew #stationAttackButton:hover{border-color:#ff9a8b!important;box-shadow:0 0 14px #f4485261}
     .copilot-mode .controls .dpad .ctrl,.copilot-mode .controls .throttle button:not(#fireWeapon),.copilot-mode #bodySelect,.copilot-mode #orbit,.copilot-mode #routeGo,.copilot-mode #routeTarget{filter:saturate(.55);opacity:.32!important;cursor:not-allowed;pointer-events:none!important}
     .passenger-mode .controls,.passenger-mode .auxcontrols,.passenger-mode .route-panel,.passenger-mode #orbit,.passenger-mode #scan,.passenger-mode #fireWeapon,.passenger-mode #mineButton,.passenger-mode #stationAttackButton{filter:grayscale(.7);opacity:.28!important;pointer-events:none!important}
-    @media(max-width:760px){#crewVoiceHud{right:8px;bottom:8px;gap:5px;padding:6px;font-size:7px}#crewVoiceHud button{padding:5px;font-size:6px}}
+    .passenger-mode #crewVoiceHud{top:88px;right:14px;bottom:auto}
+    @media(max-width:760px){#crewVoiceHud{right:8px;bottom:8px;gap:5px;padding:6px;font-size:7px}#crewVoiceHud button{padding:5px;font-size:6px}.passenger-mode #crewVoiceHud{top:72px;right:8px;bottom:auto}}
   `; document.head.appendChild(style);
   document.querySelector('.controlshead')?.insertAdjacentHTML('beforeend','<span class="crew-control-legend">PILOTO <em>AZUL</em> · COPILOTO <strong>VERMELHO</strong></span>');
   const stateText=hud.querySelector('.crew-voice-state'), enable=hud.querySelector('#crewVoiceEnable'), mute=hud.querySelector('#crewVoiceMute');

@@ -1,6 +1,6 @@
 ﻿(function(){
   const CREW=[
-    {id:'captain',name:'Capitao',role:'Comando da estacao',body:0x18233e,secondary:0x111a31,pants:0x172137,trim:0xe6b75a,skin:0xc59276,hair:0x40404a,type:'male'},
+    {id:'captain',name:'Capitao',role:'Comando da estação',body:0x18233e,secondary:0x111a31,pants:0x172137,trim:0xe6b75a,skin:0xc59276,hair:0x40404a,type:'male'},
     {id:'pilot',name:'Piloto',role:'Navegacao de voo',body:0xe6672d,secondary:0x252e38,pants:0xdc612a,trim:0xffc073,skin:0xe6b29a,hair:0x201d27,type:'female'},
     {id:'engineer',name:'Engenheiro',role:'Sistemas e reparos',body:0x627650,secondary:0xb28a4b,pants:0x8a7a4d,trim:0xe6ba62,skin:0xca956c,hair:0x593628,type:'male'},
     {id:'medic',name:'Medica',role:'Saude da tripulacao',body:0xf2eff0,secondary:0xd63445,pants:0xeeedf1,trim:0xd73c4c,skin:0xf0c9b0,hair:0xe4c17c,type:'female'},
@@ -11,6 +11,7 @@
     {id:'mechanic',name:'Mecanico',role:'Manutencao pesada',body:0xc89a45,secondary:0x3e4149,pants:0x80623e,trim:0xf0ae4f,skin:0x6d92c4,hair:0x3d4c63,type:'alien'},
     {id:'cadet',name:'Cadete',role:'Treinamento espacial',body:0xf0f1f2,secondary:0xeda331,pants:0xececf0,trim:0xeab046,skin:0xefbd9d,hair:0x543322,type:'young'}
   ];
+  window.crewAvatarCatalog=CREW.map(({id,name,role,type,body,secondary,skin,hair,trim},index)=>({id,name,role,type,index,body:'#'+Number(body).toString(16).padStart(6,'0'),secondary:'#'+Number(secondary).toString(16).padStart(6,'0'),skin:'#'+Number(skin).toString(16).padStart(6,'0'),hair:'#'+Number(hair).toString(16).padStart(6,'0'),trim:'#'+Number(trim).toString(16).padStart(6,'0')}));
   window.createCrewAvatarModel=function(THREE,index,parent,helpers){
     const {box,tube,mat,glow}=helpers;
     const d=CREW[Number.isInteger(index)&&index>=0&&index<CREW.length?index:0];
@@ -32,7 +33,7 @@
     const gold=mat(0xe8b65d,.66,.33),red=mat(0xd92b46,.35,.5),lilac=glow(0xb46bff,.7),holo=glow(0x61dfff,.6);
     const bodyWidth=d.type==='female'?.385:d.type==='alien'?.52:.445;
     const uniformTop=d.id==='engineer'?primary:d.id==='navigator'?primary:primary;
-    // Corpo em volumes orgÃ¢nicos sobrepostos, com cotovelos e joelhos animados.
+    // Corpo em volumes orgânicos sobrepostos, com cotovelos e joelhos animados.
     ell(0,1.42,0,bodyWidth,.50,.25,uniformTop,g,16);
     ell(0,1.09,.012,.35,.24,.235,d.id==='medic'?primary:secondary,g);
     ell(0,1.02,0,.34,.12,.22,secondary,g);
@@ -54,7 +55,7 @@
       ell(0,-.745,-.012,.12,.125,.13,skin,arm);
       box(0,-.584,-.172,.13,.057,.03,trim,arm,false);
     }
-    // ClavÃ­cula, pescoÃ§o, cabeÃ§a, olhos, sobrancelhas, boca e orelhas.
+    // Clavícula, pescoço, cabeça, olhos, sobrancelhas, boca e orelhas.
     ell(0,1.775,0,.29,.14,.24,primary,g);
     cyl(0,1.855,0,.115,.135,.25,skin,g);
     faceHead=new THREE.Group();faceHead.position.set(0,2.075,-.008);g.add(faceHead);
@@ -105,7 +106,7 @@
       ell(.229,.009,.005,.085,.20,.12,hair,faceHead);
       ell(.13,.23,-.18,.17,.12,.11,hair,faceHead);
     }else if(d.id==='mechanic'){
-      // AlienÃ­gena com pele azul e dois chifres curtos como na ilustraÃ§Ã£o.
+      // Alienígena com pele azul e dois chifres curtos como na ilustração.
       for(const s of [-1,1]){
         const horn=cyl(s*.22,.315,0,.015,.098,.35,mat(0x5d6b8d,.1,.68),faceHead,9);horn.rotation.z=-s*.49;
       }
@@ -126,7 +127,7 @@
     box(0,1.32,-.250,.045,.61,.021,trim,g,false);
     for(const x of [-.12,.12])box(x,1.52,-.252,.18,.07,.02,secondary,g,false);
     box(0,1.55,.240,.36,.07,.02,trim,g,false);
-    // Trajes, distintivos, equipamentos de costas e acessÃ³rios exclusivos.
+    // Trajes, distintivos, equipamentos de costas e acessórios exclusivos.
     if(d.id==='captain'){
       for(const s of [-1,1]){
         coatPanel(s*.27,.94,.08,.24,.71,.18,primary,g,s*.06);
@@ -135,8 +136,6 @@
       box(0,1.55,-.26,.19,.10,.028,gold,g,false);
       box(0,1.44,.257,.45,.10,.03,gold,g,false);
     } else if(d.id==='pilot'){
-      box(0,1.37,-.271,.25,.33,.042,secondary,g);
-      box(0,1.37,-.300,.19,.16,.016,holo,g,false);
       ell(-.50,1.05,.20,.245,.238,.24,charcoal,g);
       ell(-.50,1.05,-.001,.201,.112,.198,ivory,g);
       box(-.50,1.038,-.128,.35,.14,.07,steel,g);
@@ -152,7 +151,7 @@
       tube([0,.34,0],[-.15,.56,0],.056,steel,tool);
       tube([0,.34,0],[.15,.56,0],.056,steel,tool);
       ell(0,-.43,0,.11,.10,.08,steel,tool);
-      // Ã“culos de engenharia apoiados na testa.
+      // Óculos de engenharia apoiados na testá.
       for(const s of [-1,1])ring(s*.13,.25,-.259,.115,.036,steel,faceHead);
     } else if(d.id==='medic'){
       for(const s of [-1,1])box(s*.30,1.49,-.20,.095,.26,.09,red,g);
@@ -216,7 +215,7 @@
       }
       box(0,1.03,-.292,.49,.095,.08,steel,g);
       box(0,1.4,.29,.60,.48,.12,secondary,g);
-      // Ferramenta mecÃ¢nica de grande porte sobre ombro direito.
+      // Ferramenta mecânica de grande porte sobre ombro direito.
       const heavy=new THREE.Group();heavy.position.set(.66,1.93,.13);heavy.rotation.z=-.77;g.add(heavy);
       tube([0,-.61,0],[0,.41,0],.072,steel,heavy);
       tube([0,.35,0],[-.22,.54,0],.09,steel,heavy);

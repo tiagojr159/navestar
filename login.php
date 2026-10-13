@@ -146,7 +146,7 @@ function h(string $value): string { return htmlspecialchars($value, ENT_QUOTES |
     <div class="brand">N<span>A</span>VE <span style="color:#7399a8;font-size:9px;letter-spacing:.15em">DEEP SPACE / 01</span></div>
     <div class="eyebrow">IDENTIFICAÇÃO DE TRIPULAÇÃO</div>
     <h1 class="title"><?= $mode === 'register' ? 'Criar conta de piloto' : 'Acessar o multiplayer' ?></h1>
-    <p class="intro"><?= $mode === 'register' ? 'Escolha sua nave de partida. Novos cascos estarão à venda no estaleiro conforme você avança pelo setor.' : 'Entre no setor e encontre outras naves online.' ?></p>
+    <p class="intro"><?= $mode === 'register' ? 'Escolha sua nave de partida. Novos cascos estarão à venda no estáleiro conforme você avança pelo setor.' : 'Entre no setor e encontre outras naves online.' ?></p>
     <nav class="tabs"><a class="<?= $mode === 'login' ? 'active' : '' ?>" href="login.php">ENTRAR</a><a class="<?= $mode === 'register' ? 'active' : '' ?>" href="login.php?mode=register">CRIAR CONTA</a></nav>
     <?php if ($error !== ''): ?><p class="message" role="alert"><?= h($error) ?></p><?php endif; ?>
     <form method="post" action="login.php<?= $mode === 'register' ? '?mode=register' : '' ?>" autocomplete="on" class="<?= $mode === 'register' ? 'register-form' : '' ?>">

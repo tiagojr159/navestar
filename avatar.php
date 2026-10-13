@@ -66,7 +66,7 @@ function h(string $value): string { return htmlspecialchars($value, ENT_QUOTES |
 </style>
 </head>
 <body>
-<header class="top"><div class="brand">N<b>A</b>VE <small>· CENTRAL DE TRIPULAÇÃO</small></div><a href="index.php">VOLTAR AO JOGO</a></header>
+<header class="top"><div class="brand">N<b>A</b>VE <small>· CENTRAL DE TRIPULAÇÃO</small></div><nav><a href="catélogo.php">CATALOGO DO SETOR</a> &nbsp; <a href="index.php">VOLTAR AO JOGO</a></nav></header>
 <main class="wrap">
 <div class="heading"><div><div class="eyebrow">PERSONALIZAÇÃO DE PILOTO</div><h1>Escolha quem vai ao comando</h1><p>Selecione seu avatar para representar você no setor.</p></div><div class="crew-count">10 PERSONAGENS · 10 TRAJES DE TRIPULAÇÃO</div></div>
 <?php if ($error): ?><div class="message" role="alert"><?= h($error) ?></div><?php elseif ($saved): ?><div class="message ok" role="status">Avatar salvo no seu perfil. Ele já representa você no multiplayer.</div><?php endif; ?>

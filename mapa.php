@@ -21,7 +21,7 @@ declare(strict_types=1);
   </style>
 </head>
 <body>
-  <header class="top"><div class="brand">NAVE <span>/ CARTOGRAFIA</span></div><div class="topright"><div class="status"><i></i><span id="connection">CONECTANDO AO SISTEMA</span></div><a href="index.php">VOLTAR À NAVE</a></div></header>
+  <header class="top"><div class="brand">NAVE <span>/ CARTOGRAFIA</span></div><div class="topright"><div class="status"><i></i><span id="connection">CONECTANDO AO SISTEMA</span></div><a href="catélogo.php">CATALOGO</a><a href="avatar.php">AVATAR</a><a href="index.php">VOLTAR AO JOGO</a></div></header>
   <main>
     <div class="heading"><div><div class="eyebrow">Carta de navegação · setor local</div><h1>Mapa geral do espaço</h1><p>Visualização completa dos planetas, luas e estações no espaço navegável.</p></div><div class="scale-note">ALCANCE MÁXIMO<br><strong>450.000 px a partir do centro</strong><br>Faixa completa: −450.000 a +450.000 em X e Z</div></div>
     <div class="layout">
@@ -39,7 +39,7 @@ declare(strict_types=1);
     </div>
   </main>
   <script>
-    const canvas=document.querySelector('#starMap'),ctx=canvas.getContext('2d');
+    let requestedTargetId=new URLSearchParams(location.search).get('target');const canvas=document.querySelector('#starMap'),ctx=canvas.getContext('2d');
     const bounds=450000,size=1000,worldToPixel=size/(bounds*2);
     let bodies=[],ship={x:0,z:0},selected=null,zoom=1,center={x:0,z:0},drag=null;
     const fmt=n=>Math.round(n).toLocaleString('pt-BR');
@@ -76,7 +76,7 @@ declare(strict_types=1);
     canvas.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,moved:false};canvas.setPointerCapture(e.pointerId)});
     canvas.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(dx,dy)>2)drag.moved=true;if(drag.moved){const rect=canvas.getBoundingClientRect(),unit=bounds*2/(rect.width*zoom);center.x-=dx*unit;center.z-=dy*unit;drag.x=e.clientX;drag.y=e.clientY;draw()}});
     canvas.addEventListener('pointerup',()=>{if(drag)setTimeout(()=>drag=null,0)});canvas.addEventListener('wheel',e=>{e.preventDefault();setZoom(zoom*(e.deltaY<0?1.15:1/1.15))},{passive:false});
-    async function refreshMap(){try{const response=await fetch('index.php?action=load-map',{cache:'no-store'});if(!response.ok)throw new Error('Resposta inválida do servidor');const data=await response.json();bodies=data.bodies||[];ship=data.ship||{x:0,z:0};document.querySelector('#shipCoord').textContent=`X ${fmt(ship.x)} · Z ${fmt(ship.z)}`;document.querySelector('#connection').textContent='MAPA ATUALIZADO';mapMessage.classList.remove('show');renderList(document.querySelector('#searchBodies').value);if(selected){const fresh=bodies.find(b=>b.id===selected.id);if(fresh)selectBody(fresh)}else draw()}catch(error){document.querySelector('#connection').textContent='SEM CONEXÃO';mapMessage.classList.add('show')}}
+    async function refreshMap(){try{const response=await fetch('index.php?action=load-map',{cache:'no-store'});if(!response.ok)throw new Error('Resposta inválida do servidor');const data=await response.json();bodies=data.bodies||[];ship=data.ship||{x:0,z:0};document.querySelector('#shipCoord').textContent=`X ${fmt(ship.x)} · Z ${fmt(ship.z)}`;document.querySelector('#connection').textContent='MAPA ATUALIZADO';mapMessage.classList.remove('show');renderList(document.querySelector('#searchBodies').value);if(requestedTargetId){const requested=bodies.find(b=>b.id===requestedTargetId);if(requested){center={x:requested.x,z:requested.z};zoom=2;selectBody(requested);requestedTargetId=null;return}}if(selected){const fresh=bodies.find(b=>b.id===selected.id);if(fresh)selectBody(fresh)}else draw()}catch(error){document.querySelector('#connection').textContent='SEM CONEXÃO';mapMessage.classList.add('show')}}
     refreshMap();setInterval(refreshMap,5000);
   </script>
 </body>

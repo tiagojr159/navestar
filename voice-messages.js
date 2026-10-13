@@ -73,7 +73,7 @@
       target = { id: Number(userId)||0, name: String(name || 'PILOTO'), channel };
       compose.querySelector('.voice-message-kicker').textContent = channel==='station' ? 'INTERCOM / CANAL DA ESTACAO' : channel==='open' ? 'TRANSMISSAO DE RADIO / CANAL ABERTO' : 'MENSAGEM PRIVADA / CANAL DE AUDIO';
       compose.querySelector('#voiceComposeTitle').textContent = channel==='station' ? 'FALAR COM A ESTACAO' : channel==='open' ? 'AUDIO NO CANAL ABERTO' : 'AUDIO PARA ' + target.name.toUpperCase();
-      compose.querySelector('#voiceComposeCopy').textContent = channel==='station' ? 'Grave uma mensagem para todos os jogadores que estao dentro desta estacao. Cada pessoa pode ouvir ou fechar.' : channel==='open' ? 'Enviaremos sua gravacao para as naves ativas num raio de 5.000 km. Cada piloto decide se quer ouvir ou fechar.' : 'Grave uma mensagem curta. Seu amigo recebera um aviso azul para ouvir ou fechar.';
+      compose.querySelector('#voiceComposeCopy').textContent = channel==='station' ? 'Grave uma mensagem para todos os jogadores que estáo dentro desta estação. Cada pessoa pode ouvir ou fechar.' : channel==='open' ? 'Enviaremos sua gravacao para as naves ativas num raio de 5.000 km. Cada piloto decide se quer ouvir ou fechar.' : 'Grave uma mensagem curta. Seu amigo recebera um aviso azul para ouvir ou fechar.';
       composeStatus.textContent = 'Grave uma mensagem de ate 30 segundos.';
       clearPreview(); startButton.hidden=false; startButton.disabled=false; stopButton.hidden=true; sendButton.disabled=true;
       compose.classList.add('open'); compose.setAttribute('aria-hidden','false');
@@ -149,7 +149,7 @@
         const response = await fetch(api + '?action=voice-message-send', { method: 'POST', body: form, cache: 'no-store' });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Não foi possível enviar o áudio.');
-        const sentText = target.channel === 'station' ? `Aviso enviado para ${Number(data.recipients || 0)} pessoa(s) nesta estacao.` : target.channel === 'open' ? `Transmissao enviada para ${Number(data.recipients || 0)} nave(s) proximas.` : 'Mensagem enviada para ' + target.name + '.';
+        const sentText = target.channel === 'station' ? `Aviso enviado para ${Number(data.recipients || 0)} pessoa(s) nestá estação.` : target.channel === 'open' ? `Transmissao enviada para ${Number(data.recipients || 0)} nave(s) proximas.` : 'Mensagem enviada para ' + target.name + '.';
         composeStatus.textContent = sentText;
         onStatus(sentText);
         setTimeout(closeComposer, 1100);
@@ -192,12 +192,12 @@
         const isOpenChannel = message.channel_type === 'open', isStationChannel = message.channel_type === 'station';
         inbox.querySelector('.voice-message-kicker').innerHTML = isStationChannel ? '<span class="voice-rec-indicator"></span>INTERCOM DA ESTACAO' : isOpenChannel ? '<span class="voice-rec-indicator"></span>CANAL ABERTO - TRANSMISSAO PROXIMA' : '<span class="voice-rec-indicator"></span>MENSAGEM RECEBIDA';
         inbox.querySelector('#voiceInboxTitle').textContent = isStationChannel ? 'AUDIO NO INTERCOM' : isOpenChannel ? 'AUDIO PROXIMO' : 'NOVA MENSAGEM DE AUDIO';
-        inbox.querySelector('#voiceInboxCopy').textContent = isStationChannel ? `${message.sender_name} falou para os jogadores nesta estacao (${Math.max(1, Math.ceil(Number(message.duration_ms) / 1000))} s).` : isOpenChannel ? `${message.sender_name} transmitiu no canal aberto (${Math.max(1, Math.ceil(Number(message.duration_ms) / 1000))} s). Escolha se deseja ouvir.` : `${message.sender_name} enviou uma mensagem de audio de aproximadamente ${Math.max(1, Math.ceil(Number(message.duration_ms) / 1000))} segundos.`;
+        inbox.querySelector('#voiceInboxCopy').textContent = isStationChannel ? `${message.sender_name} falou para os jogadores nestá estação (${Math.max(1, Math.ceil(Number(message.duration_ms) / 1000))} s).` : isOpenChannel ? `${message.sender_name} transmitiu no canal aberto (${Math.max(1, Math.ceil(Number(message.duration_ms) / 1000))} s). Escolha se desejá ouvir.` : `${message.sender_name} enviou uma mensagem de audio de aproximadamente ${Math.max(1, Math.ceil(Number(message.duration_ms) / 1000))} segundos.`;
         inbox.querySelector('#voiceInboxStatus').textContent = 'Toque em ouvir para reproduzir a mensagem.';
         incomingAudio.src = api + '?action=voice-message-audio&id=' + encodeURIComponent(message.id);
         inbox.classList.add('open');
         inbox.setAttribute('aria-hidden', 'false');
-        onStatus(((isStationChannel ? 'Intercom da estacao de ' : isOpenChannel ? 'Transmissao de canal aberto de ' : 'Nova mensagem de audio de ')) + message.sender_name + '.');
+        onStatus(((isStationChannel ? 'Intercom da estação de ' : isOpenChannel ? 'Transmissao de canal aberto de ' : 'Nova mensagem de audio de ')) + message.sender_name + '.');
         if (!isOpenChannel) {
           inbox.querySelector('#voiceInboxStatus').textContent = 'Tentando reproduzir automaticamente...';
           const playback = incomingAudio.play();

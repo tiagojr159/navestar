@@ -23,6 +23,14 @@ CREATE TABLE IF NOT EXISTS users (
   KEY ix_users_presence (is_active, last_seen_at)
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS user_control_layouts (
+  user_id BIGINT UNSIGNED NOT NULL,
+  tool_order JSON NOT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id),
+  CONSTRAINT fk_user_control_layout_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS ships (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id BIGINT UNSIGNED NOT NULL,
@@ -411,7 +419,8 @@ CREATE TABLE IF NOT EXISTS mineral_catalog (
 INSERT INTO mineral_catalog (code,name,unit_price_credits,is_available) VALUES
   ('iron','Minério de ferro',10,1),
   ('nickel','Minério de níquel',20,1),
-  ('cobalt','Minério de cobalto',30,1)
+  ('cobalt','Minério de cobalto',30,1),
+  ('ice','Gelo',5,1)
 ON DUPLICATE KEY UPDATE name=VALUES(name),unit_price_credits=VALUES(unit_price_credits),is_available=VALUES(is_available);
 
 -- Catálogo de armamentos, recarga e melhoria usados pelo terminal das estações.

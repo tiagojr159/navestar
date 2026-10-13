@@ -1,0 +1,94 @@
+.market-icon-mode .market-hidden-copy{visibility:hidden!important}
+.market-icon-mode [data-market-tip]{cursor:help}
+.market-icon-mode button[data-market-tip],.market-icon-mode a[data-market-tip],.market-icon-mode select[data-market-tip],.market-icon-mode input[data-market-tip]{cursor:pointer}
+.market-hover-tip{position:fixed;z-index:2147483647;left:-10000px;top:-10000px;max-width:min(330px,calc(100vw - 24px));padding:9px 12px;border:1px solid #39d8e6;border-radius:4px;background:linear-gradient(145deg,#0c2938,#04121d);box-shadow:0 8px 28px #000c,0 0 18px #19d8e533;color:#e5fdff;font:11px/1.45 'Space Mono',monospace;letter-spacing:.025em;pointer-events:none;opacity:0;transform:translateY(3px);transition:opacity .12s,transform .12s}
+.market-hover-tip.is-visible{opacity:1;transform:translateY(0)}
+.market-icon-mode .market-icon-action{position:relative;display:inline-grid;place-items:center;min-width:36px;min-height:36px;padding:6px;border-radius:3px;font-size:0!important;color:transparent!important}
+.market-icon-mode .market-icon-action svg{width:22px;height:22px;color:#74eff0;flex:none}
+.market-icon-mode .market-icon-action:hover,.market-icon-mode .market-icon-action:focus-visible{border-color:#62f4f4;box-shadow:0 0 15px #30eaf355;background:#0b3945}
+.market-icon-mode .market-tab{gap:0;min-width:55px}
+.market-icon-mode .market-tab>svg{width:30px;height:30px;transition:transform .15s,filter .15s}
+.market-icon-mode .market-tab:hover>svg,.market-icon-mode .market-tab:focus-visible>svg{transform:scale(1.16);filter:drop-shadow(0 0 9px #5af7ff)}
+.market-icon-mode .market-heading{min-height:34px;align-items:center;padding:0 5px 9px}
+.market-icon-mode .market-heading h1{font-size:0!important;margin:0!important}
+.market-icon-mode .market-heading p{display:none}
+.market-icon-mode .market-heading .eyebrow{font-size:0!important}
+.market-icon-mode .market-live{width:40px;height:36px;display:grid;place-items:center;padding:0;font-size:0!important}
+.market-icon-mode .market-live i{width:8px;height:8px;margin:0}
+.market-icon-mode .station-sidebar>.eyebrow,.market-icon-mode .station-title,.market-icon-mode .station-orbit-label,.market-icon-mode .station-side-stats,.market-icon-mode .station-side-note{font-size:0!important}
+.market-icon-mode .station-title{height:12px;min-height:12px;margin:0;padding:0}
+.market-icon-mode .station-orbit-label{height:0;margin:0}
+.market-icon-mode .station-side-stats>div{height:34px;min-height:34px;padding:0 7px}
+.market-icon-mode .station-side-note{height:8px;min-height:8px;margin:0;padding:0;border:0;background:none}
+.market-icon-mode .station-illustration{min-height:0;flex:1;margin:8px 0;padding:0;border:0}
+.market-icon-mode .station-illustration svg{height:100%;max-height:440px}
+.market-icon-mode .shipyard{padding:8px}
+.market-icon-mode .shipyard-head{height:24px;margin:0 0 6px;display:flex;align-items:center}
+.market-icon-mode .shipyard-products{gap:7px}
+.market-icon-mode .ship-product{position:relative;min-height:165px;padding:6px}
+.market-icon-mode .ship-product-kicker,.market-icon-mode .ship-product-title,.market-icon-mode .ship-product p,.market-icon-mode .ship-product-specs{font-size:0!important;min-height:0!important;line-height:0!important;margin:0!important;padding:0!important;border:0!important;gap:0!important}
+.market-icon-mode .ship-product-art{height:90px;margin:0 0 5px}
+.market-icon-mode .ship-product-action{width:100%;min-height:37px}
+.market-icon-mode .shipyard-fleet{min-height:0}
+.market-icon-mode .fuel-market{min-height:76px;align-items:center;padding:8px;gap:8px}
+.market-icon-mode .fuel-market>div:first-child,.market-icon-mode .fuel-market-status,.market-icon-mode .fuel-market-note{font-size:0!important}
+.market-icon-mode .fuel-market-actions{display:flex;gap:5px;align-items:center}
+.market-icon-mode .fuel-market-actions button{min-width:36px;min-height:36px;padding:5px;font-size:0!important}
+.market-icon-mode .ore-exchange{min-height:62px;padding:7px;align-items:center}
+.market-icon-mode .sale-head,.market-icon-mode .sale-stock{font-size:0!important}
+.market-icon-mode .sale-controls{display:flex;align-items:center;gap:5px}
+.market-icon-mode .sale-controls select{width:43px;min-width:43px;height:38px;padding:3px 18px 3px 4px;font-size:0!important;color:transparent!important;background-color:#071722;background-image:none}
+.market-icon-mode .sale-controls input{width:55px;min-width:55px;height:38px;font-size:12px!important}
+.market-icon-mode .sale-controls button{min-width:38px;min-height:38px;padding:5px;font-size:0!important}
+.market-icon-mode .shop-label{height:13px;margin:0!important;font-size:0!important}
+.market-icon-mode .shop-item{min-height:162px;padding:8px;align-items:center;justify-content:flex-start;gap:4px}
+.market-icon-mode .shop-item:before{width:30px}
+.market-icon-mode .item-icon{width:56px;height:56px;margin:2px 0 5px}
+.market-icon-mode .item-icon svg{width:34px;height:34px}
+.market-icon-mode .item-tag,.market-icon-mode .shop-item h2,.market-icon-mode .shop-item p,.market-icon-mode .weapon-specs,.market-icon-mode .ammo-meta,.market-icon-mode .upgrade-arrow,.market-icon-mode .price{font-size:0!important;min-height:0!important;line-height:0!important;margin:0!important;padding:0!important;border:0!important;gap:0!important}
+.market-icon-mode .ammo-meter{width:72%;height:5px;margin:2px 0 6px}
+.market-icon-mode .item-buy{width:100%;padding:0;margin-top:auto;justify-content:center}
+.market-icon-mode .trade-button{min-width:38px;min-height:38px;padding:4px;font-size:0!important}
+.market-icon-mode .station-bank,.market-icon-mode .mission-board{min-height:66px;padding:7px}
+.market-icon-mode .bank-head,.market-icon-mode .bank-vault,.market-icon-mode .mission-board>p{font-size:0!important}
+.market-icon-mode .bank-vault>div{min-height:42px;padding:4px;display:grid;place-items:center}
+.market-icon-mode .bank-icon{width:32px;height:32px;display:grid;place-items:center}
+.market-icon-mode .market-ship-status{grid-template-columns:repeat(3,minmax(42px,1fr));gap:5px;padding:7px}
+.market-icon-mode .market-ship-heading,.market-icon-mode .market-ship-name{min-width:0;display:grid;place-items:center}
+.market-icon-mode .market-ship-name>svg{width:30px;height:30px}
+.market-icon-mode .market-meter{justify-content:center;padding:4px}
+.market-icon-mode .market-meter>span:last-child{min-width:0}
+.market-icon-mode .market-meter i{width:50px}
+.market-icon-mode .market-details{min-width:38px;width:38px;height:38px;padding:4px;font-size:0!important}
+.market-icon-mode .market-details b{display:none}
+.market-icon-mode .station-message{height:7px;min-height:7px;margin:0;padding:0;border:0;font-size:0!important}
+.market-icon-mode .station-footer{height:5px;margin:0;padding:0;border:0;font-size:0!important}
+.market-icon-mode :focus-visible{outline:2px solid #62f4f4;outline-offset:2px}
+@media(max-width:800px){.market-icon-mode .market-heading{min-height:29px}.market-icon-mode .station-illustration{display:none}.market-icon-mode .market-ship-status{grid-template-columns:repeat(3,minmax(38px,1fr))}.market-icon-mode .station-market{gap:8px}}
+
+/* Icon-first mode removes hidden copy from layout; its complete label remains on the hovered/focused control. */
+.market-icon-mode .market-hidden-copy{display:none!important}
+.market-icon-mode .shipyard-head>svg,.market-icon-mode .sale-head>svg,.market-icon-mode .shop-label>svg{width:27px;height:27px;flex:none;color:#63e8ef;filter:drop-shadow(0 0 8px #25d8e833)}
+.market-icon-mode .shipyard-head,.market-icon-mode .sale-head,.market-icon-mode .shop-label{justify-content:center}
+.market-icon-mode .shipyard-head{height:30px}
+.market-icon-mode .station-side-stats>div{position:relative;display:flex;align-items:center;justify-content:space-around;min-height:39px;height:39px}
+.market-icon-mode .station-side-stats>div>svg{width:21px;height:21px;color:#48dce7;filter:drop-shadow(0 0 5px #12c8e633)}
+.market-icon-mode .sale-controls select{appearance:none;-webkit-appearance:none;background-repeat:no-repeat;background-position:center;background-size:22px 22px;color:transparent!important}
+.market-icon-mode .sale-controls select[data-market-icon="minerals"]{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237ce9ed' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 2 8 5-2 11-6 4-7-5L4 8z'/%3E%3Cpath d='m4 8 8 5 8-6m-8 6v9'/%3E%3C/svg%3E")}
+.market-icon-mode .sale-controls select[data-market-icon="crate"]{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f5c878' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 7 9-5 9 5v10l-9 5-9-5z'/%3E%3Cpath d='m3 7 9 5 9-5m-9 5v10'/%3E%3C/svg%3E")}
+.market-icon-mode .sale-controls select:focus-visible{color:transparent!important;border-color:#55e9ef;background-color:#092530}
+.market-icon-mode .fuel-market-actions button{display:inline-grid;place-items:center}
+.market-icon-mode .fuel-market-actions button svg{color:#ffb562}
+.market-icon-mode .station-side-note{display:none}
+.market-icon-mode .station-footer{display:none}
+.market-icon-mode .shipyard-fleet{height:30px;min-height:30px;display:flex;justify-content:center;align-items:center}
+.market-icon-mode .market-ship-status{margin-top:auto}
+
+.market-icon-mode .trade-button.market-icon-action:not(:has(svg,img))::after{content:'';display:block;width:22px;height:22px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2374eff0' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4h2l2 12h13l3-8H7'/%3E%3Ccircle cx='10' cy='20' r='1.5'/%3E%3Ccircle cx='18' cy='20' r='1.5'/%3E%3C/svg%3E") center/contain no-repeat;filter:drop-shadow(0 0 5px #19dce633)}
+
+.market-icon-mode .station-market .sale-head small,.market-icon-mode .station-market .sale-stock,.market-icon-mode .station-market .station-message,.market-icon-mode .station-market .station-footer{display:none!important}
+.market-icon-mode .station-market .shipyard-fleet *{font-size:0!important;line-height:0!important;color:transparent!important}
+
+.market-redesign .market-raster-icon{width:100%;height:100%;max-width:34px;max-height:34px;object-fit:contain;display:block;filter:drop-shadow(0 1px 4px #42dff955)}.market-redesign .market-tab>.market-raster-icon{width:34px;height:34px;max-width:none;max-height:none}.market-redesign .market-icon-action>.market-raster-icon{width:24px;height:24px;max-width:none;max-height:none}.market-redesign .market-credit-icon>.market-raster-icon{width:38px;height:38px;max-width:none;max-height:none}.market-redesign .market-fuel-icon>.market-raster-icon{width:27px;height:27px;max-width:none;max-height:none}.market-redesign .item-icon>.market-raster-icon{width:33px;height:33px;max-width:none;max-height:none}.market-redesign .bank-icon>.market-raster-icon,.market-redesign .bank-mark>.market-raster-icon,.market-redesign .meter-icon>.market-raster-icon{width:22px;height:22px;max-width:none;max-height:none}.market-redesign .market-ship-name>.market-raster-icon,.market-redesign .shipyard-head>.market-raster-icon,.market-redesign .sale-head>.market-raster-icon,.market-redesign .shop-label>.market-raster-icon,.market-redesign .station-side-stats>div>.market-raster-icon{width:30px;height:30px;max-width:none;max-height:none;flex:none}.market-redesign .market-ship-name>.market-raster-icon{width:38px;height:38px}
+
+.market-icon-mode .sale-controls select[data-market-icon=minerals]{background-image:url('midia/66_arte_3d_icon_minerios_colorido.png')}.market-icon-mode .sale-controls select[data-market-icon=crate]{background-image:url('midia/17_caixa_carga.png')}

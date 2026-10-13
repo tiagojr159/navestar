@@ -38,7 +38,7 @@ function mpCallId(): string
 function mpEnsureTowSystem(PDO $pdo): void
 {
     $equipmentExists=$pdo->query("SELECT 1 FROM equipment WHERE code='tractor_array' LIMIT 1")->fetchColumn();
-    if(!$equipmentExists)$pdo->exec("INSERT INTO equipment (code,name,equipment_type,description,damage,ammo_capacity,quantity_per_purchase,price_credits,iron_cost_kg,nickel_cost_kg,cobalt_cost_kg,weight_kg) VALUES ('tractor_array','Conjunto rebocador orbital','engine','Emissor de tracao para arrastar naves desativadas ate uma estacao.',0,0,1,12000,250,0,0,380)");
+    if(!$equipmentExists)$pdo->exec("INSERT INTO equipment (code,name,equipment_type,description,damage,ammo_capacity,quantity_per_purchase,price_credits,iron_cost_kg,nickel_cost_kg,cobalt_cost_kg,weight_kg) VALUES ('tractor_array','Conjunto rebocador orbital','engine','Emissor de tracao para arrastar naves desativadas ate uma estação.',0,0,1,12000,250,0,0,380)");
     $pdo->exec("CREATE TABLE IF NOT EXISTS ship_tows (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         tug_ship_id BIGINT UNSIGNED NOT NULL,
@@ -131,6 +131,71 @@ try {
     $pdo = db();
     $action = $_GET['action'] ?? '';
 
+    if ($action === 'control-layout') {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS user_control_layouts (
+            user_id BIGINT UNSIGNED NOT NULL,
+            tool_order JSON NOT NULL,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (user_id),
+            CONSTRAINT fk_user_control_layout_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB");
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+            $layout = $pdo->prepare('SELECT tool_order FROM user_control_layouts WHERE user_id=? LIMIT 1');
+            $layout->execute([$userId]);
+            $saved = $layout->fetchColumn();
+            mpResponse(['order' => $saved ? (json_decode((string)$saved, true) ?: null) : null]);
+        }
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error' => 'Use GET ou POST.'], 405);
+        $order = mpInput()['order'] ?? null;
+        $allowed = ['route','cargo','telemetry','ship-status','maneuver'];
+        $validOrder = is_array($order)
+            && count($order) === count($allowed)
+            && count(array_filter($order, static fn($item) => is_string($item) && in_array($item, $allowed, true))) === count($allowed)
+            && count(array_unique($order)) === count($allowed);
+        if (!$validOrder) {
+            mpResponse(['error' => 'A ordem das ferramentas é inválida.'], 400);
+        }
+        $save = $pdo->prepare('INSERT INTO user_control_layouts (user_id,tool_order) VALUES (?,?) ON DUPLICATE KEY UPDATE tool_order=VALUES(tool_order)');
+        $save->execute([$userId, json_encode(array_values($order), JSON_UNESCAPED_UNICODE)]);
+        mpResponse(['ok' => true, 'order' => array_values($order)]);
+    }
+
+    if ($action === 'station-panel-layout') {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS user_station_panel_layouts (
+            user_id BIGINT UNSIGNED NOT NULL,
+            panel_order JSON NOT NULL,
+            collapsed_panels JSON NOT NULL,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (user_id),
+            CONSTRAINT fk_station_panel_layout_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB");
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+            $layout = $pdo->prepare('SELECT panel_order, collapsed_panels FROM user_station_panel_layouts WHERE user_id=? LIMIT 1');
+            $layout->execute([$userId]);
+            $saved = $layout->fetch(PDO::FETCH_ASSOC);
+            mpResponse([
+                'order' => $saved ? (json_decode((string)$saved['panel_order'], true) ?: null) : null,
+                'collapsed' => $saved ? (json_decode((string)$saved['collapsed_panels'], true) ?: []) : []
+            ]);
+        }
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error' => 'Use GET ou POST.'], 405);
+        $input = mpInput();
+        $order = $input['order'] ?? null;
+        $allowed = ['ships','users','inventory','events'];
+        $validOrder = is_array($order)
+            && count($order) === count($allowed)
+            && count(array_filter($order, static fn($item) => is_string($item) && in_array($item, $allowed, true))) === count($allowed)
+            && count(array_unique($order)) === count($allowed);
+        $collapsed = $input['collapsed'] ?? [];
+        $validCollapsed = is_array($collapsed)
+            && count($collapsed) <= count($allowed)
+            && count(array_filter($collapsed, static fn($value, $key) => is_string($key) && in_array($key, $allowed, true) && is_bool($value), ARRAY_FILTER_USE_BOTH)) === count($collapsed);
+        if (!$validOrder || !$validCollapsed) mpResponse(['error' => 'A organização dos painéis da estação é inválida.'], 400);
+        $save = $pdo->prepare('INSERT INTO user_station_panel_layouts (user_id,panel_order,collapsed_panels) VALUES (?,?,?) ON DUPLICATE KEY UPDATE panel_order=VALUES(panel_order),collapsed_panels=VALUES(collapsed_panels)');
+        $save->execute([$userId, json_encode(array_values($order), JSON_UNESCAPED_UNICODE), json_encode($collapsed, JSON_UNESCAPED_UNICODE)]);
+        mpResponse(['ok' => true, 'order' => array_values($order), 'collapsed' => $collapsed]);
+    }
+
     if (in_array($action, ['station-call-status','station-call-signal','station-call-poll'], true)) {
         $here=$pdo->prepare("SELECT station_id,room_pos_z FROM station_occupants WHERE user_id=? AND mode='station' LIMIT 1");
         $here->execute([$userId]); $location=$here->fetch(PDO::FETCH_ASSOC);
@@ -149,14 +214,14 @@ try {
         }
         if($action==='station-call-signal') {
             if($_SERVER['REQUEST_METHOD']!=='POST')mpResponse(['error'=>'Use POST para sinalizar a chamada.'],405);
-            $input=mpInput();$type=(string)($input['type']??'');$peerId=(int)($input['peer_id']??0);$payload=$input['payload']??null;$mode=(string)($input['mode']??'voice');
+            $input=mpInput();$type=(string)($input['type']??'');$peerId=(int)($input['peer_id']??0);$payload=$input['payload']??null;$mode=(string)($input['mode']??'voice');$isRoomCall=!empty($input['room_call']);
             if(!in_array($type,['offer','answer','ice','close'],true)||!in_array($mode,['voice','video','screen'],true)||($type!=='close'&&!is_array($payload)))mpResponse(['error'=>'Sinal de chamada invalido.'],400);
             $peerIds=array_map(static fn($p)=>(int)$p['id'],$peers);if($peerId===$userId||!in_array($peerId,$peerIds,true))mpResponse(['error'=>'O outro piloto precisa estar no mesmo compartimento.'],403);
-            $wrapped=['station_call'=>1,'mode'=>$mode,'data'=>$payload];$encoded=json_encode($wrapped,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);if(strlen($encoded)>16000)mpResponse(['error'=>'Sinal de chamada excede o limite.'],413);
+            $wrapped=['station_call'=>$isRoomCall?2:1,'mode'=>$mode,'data'=>$payload];if($isRoomCall){$groupId=(string)($input['group_id']??'');if($groupId!==$stationId.':'.$roomCode)mpResponse(['error'=>'A chamada pertence a outro compartimento.'],403);$wrapped['group_id']=$groupId;}$encoded=json_encode($wrapped,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);if(strlen($encoded)>16000)mpResponse(['error'=>'Sinal de chamada excede o limite.'],413);
             $pdo->prepare('INSERT INTO station_voice_signals(station_id,sender_id,recipient_id,signal_type,payload) VALUES(?,?,?,?,?)')->execute([$stationId,$userId,$peerId,$type,$encoded]);mpResponse(['ok'=>true]);
         }
         if(random_int(1,120)===1)$pdo->exec("DELETE FROM station_voice_signals WHERE created_at<DATE_SUB(NOW(),INTERVAL 1 HOUR)");
-        $signalsQuery=$pdo->prepare("SELECT id,sender_id,signal_type,payload FROM station_voice_signals WHERE station_id=? AND recipient_id=? AND read_at IS NULL AND created_at>=DATE_SUB(NOW(),INTERVAL 1 MINUTE) AND JSON_UNQUOTE(JSON_EXTRACT(payload,'$.station_call'))='1' ORDER BY id LIMIT 60");$signalsQuery->execute([$stationId,$userId]);$signals=$signalsQuery->fetchAll(PDO::FETCH_ASSOC);
+        $signalsQuery=$pdo->prepare("SELECT id,sender_id,signal_type,payload FROM station_voice_signals WHERE station_id=? AND recipient_id=? AND read_at IS NULL AND created_at>=DATE_SUB(NOW(),INTERVAL 1 MINUTE) AND JSON_UNQUOTE(JSON_EXTRACT(payload,'$.station_call')) IN ('1','2') ORDER BY id LIMIT 60");$signalsQuery->execute([$stationId,$userId]);$signals=$signalsQuery->fetchAll(PDO::FETCH_ASSOC);
         if($signals){$signalIds=array_map('intval',array_column($signals,'id'));$pdo->exec('UPDATE station_voice_signals SET read_at=NOW() WHERE recipient_id='.$userId.' AND id IN ('.implode(',',$signalIds).')');}
         $peerMap=array_fill_keys(array_map(static fn($p)=>(int)$p['id'],$peers),true);$signals=array_values(array_filter($signals,static fn($signal)=>isset($peerMap[(int)$signal['sender_id']])));
         foreach($signals as &$signal){$signal['sender_id']=(int)$signal['sender_id'];$signal['payload']=$signal['payload']?json_decode($signal['payload'],true):null;}unset($signal);
@@ -168,15 +233,15 @@ try {
         $z=(float)$hereRow['room_pos_z'];$min=$z<109?0:($z<143?109:143);$max=$z<109?109:($z<143?143:221);$pdo->prepare('UPDATE users SET last_seen_at=NOW() WHERE id=?')->execute([$userId]);
         $q=$pdo->prepare("SELECT so.user_id,u.username FROM station_occupants so JOIN users u ON u.id=so.user_id WHERE so.station_id=? AND so.mode='station' AND so.user_id<>? AND so.room_pos_z>=? AND so.room_pos_z<? AND u.is_active=1 AND u.last_seen_at>=DATE_SUB(NOW(),INTERVAL 20 SECOND) ORDER BY so.user_id");$q->execute([$stationId,$userId,$min,$max]);$peers=array_map(static fn($r)=>['id'=>(int)$r['user_id'],'name'=>$r['username']],$q->fetchAll(PDO::FETCH_ASSOC));
         if($action==='station-voice-status'){$ice=[['urls'=>'stun:stun.l.google.com:19302'],['urls'=>'stun:stun.cloudflare.com:3478']];$url=(string)(getenv('NAVE_TURN_URLS')?:'');$user=(string)(getenv('NAVE_TURN_USERNAME')?:'');$pass=(string)(getenv('NAVE_TURN_PASSWORD')?:'');if($url!==''&&$user!==''&&$pass!=='')$ice[]=['urls'=>array_map('trim',explode(',',$url)),'username'=>$user,'credential'=>$pass];mpResponse(['active'=>true,'stationId'=>$stationId,'roomCode'=>$z<109?'observatory':($z<143?'corridor':'habitat'),'userId'=>$userId,'peers'=>$peers,'iceServers'=>$ice]);}
-        if($action==='station-voice-signal'){if($_SERVER['REQUEST_METHOD']!=='POST')mpResponse(['error'=>'Use POST.'],405);$in=mpInput();$type=(string)($in['type']??'');$peer=(int)($in['peer_id']??0);$payload=$in['payload']??null;if(!in_array($type,['offer','answer','ice','close'],true)||($type!=='close'&&!is_array($payload)))mpResponse(['error'=>'Sinal invalido.'],400);$ids=array_map(static fn($p)=>(int)$p['id'],$peers);if($peer===$userId||!in_array($peer,$ids,true))mpResponse(['error'=>'Jogador fora desta sala.'],403);$encoded=json_encode($payload,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);if($encoded!==false&&strlen($encoded)>16000)mpResponse(['error'=>'Sinal excede limite.'],413);$pdo->prepare('INSERT INTO station_voice_signals(station_id,sender_id,recipient_id,signal_type,payload) VALUES(?,?,?,?,?)')->execute([$stationId,$userId,$peer,$type,$encoded]);mpResponse(['ok'=>true]);}
-        $q=$pdo->prepare("SELECT id,sender_id,signal_type,payload FROM station_voice_signals WHERE station_id=? AND recipient_id=? AND read_at IS NULL AND created_at>=DATE_SUB(NOW(),INTERVAL 1 MINUTE) AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(payload,'$.station_call')),'0')<>'1' AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(payload,'$.passenger_voice')),'0')<>'1' ORDER BY id LIMIT 60");$q->execute([$stationId,$userId]);$signals=$q->fetchAll(PDO::FETCH_ASSOC);if($signals){$ids=array_map('intval',array_column($signals,'id'));$pdo->exec('UPDATE station_voice_signals SET read_at=NOW() WHERE recipient_id='.$userId.' AND id IN ('.implode(',',$ids).')');}foreach($signals as &$signal){$signal['sender_id']=(int)$signal['sender_id'];$signal['payload']=$signal['payload']?json_decode($signal['payload'],true):null;}unset($signal);mpResponse(['active'=>true,'signals'=>$signals]);
+        if($action==='station-voice-signal'){if($_SERVER['REQUEST_METHOD']!=='POST')mpResponse(['error'=>'Use POST.'],405);$in=mpInput();$type=(string)($in['type']??'');$peer=(int)($in['peer_id']??0);$payload=$in['payload']??null;if(!in_array($type,['offer','answer','ice','close'],true)||($type!=='close'&&!is_array($payload)))mpResponse(['error'=>'Sinal invalido.'],400);$ids=array_map(static fn($p)=>(int)$p['id'],$peers);if($peer===$userId||!in_array($peer,$ids,true))mpResponse(['error'=>'Jogador fora destá sala.'],403);$encoded=json_encode($payload,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);if($encoded!==false&&strlen($encoded)>16000)mpResponse(['error'=>'Sinal excede limite.'],413);$pdo->prepare('INSERT INTO station_voice_signals(station_id,sender_id,recipient_id,signal_type,payload) VALUES(?,?,?,?,?)')->execute([$stationId,$userId,$peer,$type,$encoded]);mpResponse(['ok'=>true]);}
+        $q=$pdo->prepare("SELECT id,sender_id,signal_type,payload FROM station_voice_signals WHERE station_id=? AND recipient_id=? AND read_at IS NULL AND created_at>=DATE_SUB(NOW(),INTERVAL 1 MINUTE) AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(payload,'$.station_call')),'0') NOT IN ('1','2') AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(payload,'$.passenger_voice')),'0')<>'1' ORDER BY id LIMIT 60");$q->execute([$stationId,$userId]);$signals=$q->fetchAll(PDO::FETCH_ASSOC);if($signals){$ids=array_map('intval',array_column($signals,'id'));$pdo->exec('UPDATE station_voice_signals SET read_at=NOW() WHERE recipient_id='.$userId.' AND id IN ('.implode(',',$ids).')');}foreach($signals as &$signal){$signal['sender_id']=(int)$signal['sender_id'];$signal['payload']=$signal['payload']?json_decode($signal['payload'],true):null;}unset($signal);mpResponse(['active'=>true,'signals'=>$signals]);
     }
 
     if (in_array($action, ['passenger-voice-status','passenger-voice-signal','passenger-voice-poll'], true)) {
         $here=$pdo->prepare("SELECT so.ship_id,p.ship_id AS passenger_ship_id FROM station_occupants so LEFT JOIN ship_passengers p ON p.passenger_id=so.user_id AND p.status='active' WHERE so.user_id=? AND so.mode='aboard' LIMIT 1");$here->execute([$userId]);$where=$here->fetch(PDO::FETCH_ASSOC);$ship=(int)($where['passenger_ship_id']??$where['ship_id']??0);if(!$ship)mpResponse(['active'=>false]);$pdo->prepare('UPDATE users SET last_seen_at=NOW() WHERE id=?')->execute([$userId]);
         $q=$pdo->prepare("SELECT so.user_id,u.username FROM station_occupants so JOIN users u ON u.id=so.user_id WHERE so.ship_id=? AND so.mode='aboard' AND so.user_id<>? AND u.is_active=1 AND u.last_seen_at>=DATE_SUB(NOW(),INTERVAL 20 SECOND) ORDER BY so.user_id");$q->execute([$ship,$userId]);$peers=array_map(static fn($r)=>['id'=>(int)$r['user_id'],'name'=>$r['username']],$q->fetchAll(PDO::FETCH_ASSOC));
         if($action==='passenger-voice-status'){$ice=[['urls'=>'stun:stun.l.google.com:19302'],['urls'=>'stun:stun.cloudflare.com:3478']];$url=(string)(getenv('NAVE_TURN_URLS')?:'');$user=(string)(getenv('NAVE_TURN_USERNAME')?:'');$pass=(string)(getenv('NAVE_TURN_PASSWORD')?:'');if($url!==''&&$user!==''&&$pass!=='')$ice[]=['urls'=>array_map('trim',explode(',',$url)),'username'=>$user,'credential'=>$pass];mpResponse(['active'=>true,'shipId'=>$ship,'userId'=>$userId,'peers'=>$peers,'iceServers'=>$ice]);}
-        if($action==='passenger-voice-signal'){if($_SERVER['REQUEST_METHOD']!=='POST')mpResponse(['error'=>'Use POST.'],405);$in=mpInput();$type=(string)($in['type']??'');$peer=(int)($in['peer_id']??0);$payload=$in['payload']??null;if(!in_array($type,['offer','answer','ice','close'],true)||($type!=='close'&&!is_array($payload)))mpResponse(['error'=>'Sinal invalido.'],400);$ids=array_map(static fn($p)=>(int)$p['id'],$peers);if($peer===$userId||!in_array($peer,$ids,true))mpResponse(['error'=>'Jogador fora desta nave.'],403);$encoded=json_encode(['passenger_voice'=>1,'signal_type'=>$type,'data'=>$payload],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);if(strlen($encoded)>16000)mpResponse(['error'=>'Sinal excede limite.'],413);$pdo->prepare('INSERT INTO station_voice_signals(station_id,sender_id,recipient_id,signal_type,payload) VALUES(?,?,?,?,?)')->execute([$ship,$userId,$peer,$type,$encoded]);mpResponse(['ok'=>true]);}
+        if($action==='passenger-voice-signal'){if($_SERVER['REQUEST_METHOD']!=='POST')mpResponse(['error'=>'Use POST.'],405);$in=mpInput();$type=(string)($in['type']??'');$peer=(int)($in['peer_id']??0);$payload=$in['payload']??null;if(!in_array($type,['offer','answer','ice','close'],true)||($type!=='close'&&!is_array($payload)))mpResponse(['error'=>'Sinal invalido.'],400);$ids=array_map(static fn($p)=>(int)$p['id'],$peers);if($peer===$userId||!in_array($peer,$ids,true))mpResponse(['error'=>'Jogador fora destá nave.'],403);$encoded=json_encode(['passenger_voice'=>1,'signal_type'=>$type,'data'=>$payload],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);if(strlen($encoded)>16000)mpResponse(['error'=>'Sinal excede limite.'],413);$pdo->prepare('INSERT INTO station_voice_signals(station_id,sender_id,recipient_id,signal_type,payload) VALUES(?,?,?,?,?)')->execute([$ship,$userId,$peer,$type,$encoded]);mpResponse(['ok'=>true]);}
         $q=$pdo->prepare("SELECT id,sender_id,signal_type,payload FROM station_voice_signals WHERE station_id=? AND recipient_id=? AND read_at IS NULL AND created_at>=DATE_SUB(NOW(),INTERVAL 1 MINUTE) AND JSON_UNQUOTE(JSON_EXTRACT(payload,'$.passenger_voice'))='1' ORDER BY id LIMIT 60");$q->execute([$ship,$userId]);$signals=$q->fetchAll(PDO::FETCH_ASSOC);if($signals){$ids=array_map('intval',array_column($signals,'id'));$pdo->exec('UPDATE station_voice_signals SET read_at=NOW() WHERE recipient_id='.$userId.' AND id IN ('.implode(',',$ids).')');}foreach($signals as &$signal){$signal['sender_id']=(int)$signal['sender_id'];$wrap=$signal['payload']?json_decode($signal['payload'],true):null;$signal['signal_type']=$wrap['signal_type']??$signal['signal_type'];$signal['payload']=$wrap['data']??null;}unset($signal);mpResponse(['active'=>true,'signals'=>$signals]);
     }
 
@@ -211,7 +276,7 @@ try {
             $encoded=$payload===null?null:json_encode($payload,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
             if ($encoded!==null && strlen($encoded)>16000) mpResponse(['error'=>'Sinal WebRTC excede o limite.'],413);
             $stmt=$pdo->prepare('INSERT INTO crew_voice_signals(ship_id,sender_id,recipient_id,signal_type,payload) VALUES(?,?,?,?,?)');
-            if($peerId===$userId||!in_array($peerId,$memberIds,true))mpResponse(['error'=>'Este jogador nao faz parte da tripulacao desta nave.'],403);
+            if($peerId===$userId||!in_array($peerId,$memberIds,true))mpResponse(['error'=>'Este jogador nao faz parte da tripulacao destá nave.'],403);
             $stmt->execute([$shipId,$userId,$peerId,$type,$encoded]); mpResponse(['ok'=>true]);
         }
         $q=$pdo->prepare("SELECT id,sender_id,signal_type,payload FROM crew_voice_signals WHERE ship_id=? AND recipient_id=? AND read_at IS NULL AND created_at>=DATE_SUB(NOW(),INTERVAL 1 MINUTE) ORDER BY id LIMIT 40");
@@ -370,7 +435,7 @@ try {
         $ship = $shipQuery->fetch();
         if ($ship) { $roleQuery=$pdo->prepare("SELECT captain_id FROM ship_crew WHERE ship_id=? AND copilot_id=? AND status='active'"); $roleQuery->execute([(int)$ship['id'],$userId]); $captainId=$roleQuery->fetchColumn(); $ship['crew_role']=$captainId?'copilot':'pilot'; if($captainId) $_SESSION['crew_cargo_baseline'][(int)$ship['id']]=['Ferro'=>(int)$ship['iron_kg'],'Niquel'=>(int)$ship['nickel_kg'],'Cobalto'=>(int)$ship['cobalt_kg'],'Gelo'=>(int)$ship['ice_kg']]; }
         if (!$ship) {
-            mpResponse(['error' => 'A nave desta conta não foi encontrada.'], 404);
+            mpResponse(['error' => 'A nave destá conta não foi encontrada.'], 404);
         }
 
         mpEnsureTowSystem($pdo);
@@ -629,7 +694,7 @@ try {
         if ((int)$ship['hull_hp']>0) mpResponse(['error'=>'Sua nave ainda está operacional.'],409);
         $stationQuery=$pdo->prepare('SELECT id,name,pos_x,pos_z FROM space_stations WHERE is_active=1 AND hull_hp>0 ORDER BY POW(pos_x-?,2)+POW(pos_z-?,2),id LIMIT 1');
         $stationQuery->execute([(float)$ship['pos_x'],(float)$ship['pos_z']]); $station=$stationQuery->fetch(PDO::FETCH_ASSOC);
-        if (!$station) { $pdo->rollBack(); mpResponse(['error'=>'Nenhuma estacao ativa disponivel para reconstruir a nave.'],503); }
+        if (!$station) { $pdo->rollBack(); mpResponse(['error'=>'Nenhuma estação ativa disponivel para reconstruir a nave.'],503); }
         $spawnX=(float)$station['pos_x']+((int)$ship['id']%2?1800:-1800);
         $spawnZ=(float)$station['pos_z']+(((int)$ship['id']%3)-1)*900;
         if((int)$ship['user_id']===$userId){$pdo->prepare('UPDATE ships SET pos_x=?,pos_y=0,pos_z=?,heading=0,pitch=0,roll=0,speed=0,hull_hp=100,fuel_units=fuel_capacity_units,docked_station_id=NULL,is_active=1 WHERE id=?')->execute([$spawnX,$spawnZ,(int)$ship['id']]);}
@@ -642,7 +707,7 @@ try {
     }
 
     if ($action === 'mission-payout') {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error'=>'Use POST para registrar a recompensa da miss?o.'],405);
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error'=>'Use POST para registrar a recompensa da missão.'],405);
         $input=mpInput();$missionId=substr(trim((string)($input['id']??'')),0,100);$type=(string)($input['type']??'');
         $origin=(string)($input['origin']??'');$destination=(string)($input['destination']??'');
         $amount=(int)($input['amount']??0);$reward=(int)($input['reward']??0);$delivered=(int)($input['delivered']??0);
@@ -654,7 +719,7 @@ try {
             $valid[$station['id'].'-ammo-'.$secondMoon['id']]=['type'=>'material','origin'=>$station['id'],'destination'=>$secondMoon['id'],'amount'=>1100,'reward'=>2450];
         }
         $offer=$valid[$missionId]??null;
-        if(!$offer||$type!==$offer['type']||$origin!==$offer['origin']||$destination!==$offer['destination']||$amount!==$offer['amount']||$reward!==$offer['reward']||$delivered<0||$delivered>$amount)mpResponse(['error'=>'Dados do contrato inv?lidos.'],400);
+        if(!$offer||$type!==$offer['type']||$origin!==$offer['origin']||$destination!==$offer['destination']||$amount!==$offer['amount']||$reward!==$offer['reward']||$delivered<0||$delivered>$amount)mpResponse(['error'=>'Dados do contrato inválidos.'],400);
         $pdo->exec("CREATE TABLE IF NOT EXISTS mission_payouts (user_id BIGINT UNSIGNED NOT NULL,mission_id VARCHAR(100) NOT NULL,paid_credits INT UNSIGNED NOT NULL DEFAULT 0,delivered_count SMALLINT UNSIGNED NOT NULL DEFAULT 0,updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY(user_id,mission_id),CONSTRAINT fk_mission_payout_user FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE) ENGINE=InnoDB");
         $pdo->beginTransaction();
         $pdo->prepare('INSERT IGNORE INTO mission_payouts(user_id,mission_id) VALUES(?,?)')->execute([$userId,$missionId]);
@@ -672,15 +737,15 @@ try {
         $input=mpInput(); $stationCode=strtolower(trim((string)($input['station']??'')));
         $stationQuery=$pdo->prepare('SELECT id,pos_x,pos_z,hull_hp FROM space_stations WHERE code=? AND is_active=1 LIMIT 1');
         $stationQuery->execute([$stationCode]); $station=$stationQuery->fetch(PDO::FETCH_ASSOC);
-        if(!$station||(int)$station['hull_hp']<1)mpResponse(['error'=>'Estacao indisponivel.'],409);
+        if(!$station||(int)$station['hull_hp']<1)mpResponse(['error'=>'Estacao indisponível.'],409);
         $pdo->beginTransaction();
         $shipQuery=$pdo->prepare('SELECT s.id,s.pos_x,s.pos_z,s.hull_hp,s.ship_class,s.iron_kg,s.nickel_kg,s.cobalt_kg,s.ice_kg,s.cargo_capacity_kg,s.fuel_units FROM ships s WHERE s.user_id=? AND s.is_active=1 LIMIT 1 FOR UPDATE');
         $shipQuery->execute([$userId]); $ship=$shipQuery->fetch(PDO::FETCH_ASSOC);
         if(!$ship||(int)$ship['hull_hp']<1){$pdo->rollBack();mpResponse(['error'=>'Sua nave precisa estar operacional.'],409);}
-        if(hypot((float)$ship['pos_x']-(float)$station['pos_x'],(float)$ship['pos_z']-(float)$station['pos_z'])>2200){$pdo->rollBack();mpResponse(['error'=>'Aproxime-se a 2.200 km de uma estacao para instalar o equipamento.'],409);}
+        if(hypot((float)$ship['pos_x']-(float)$station['pos_x'],(float)$ship['pos_z']-(float)$station['pos_z'])>2200){$pdo->rollBack();mpResponse(['error'=>'Aproxime-se a 2.200 km de uma estação para instalar o equipamento.'],409);}
         $userQuery=$pdo->prepare('SELECT credits FROM users WHERE id=? FOR UPDATE');$userQuery->execute([$userId]);$credits=(int)$userQuery->fetchColumn();
         $itemQuery=$pdo->prepare("SELECT e.id,e.weight_kg,se.quantity,se.is_equipped FROM equipment e LEFT JOIN ship_equipment se ON se.equipment_id=e.id AND se.ship_id=? WHERE e.code='tractor_array' AND e.is_available=1 LIMIT 1 FOR UPDATE");$itemQuery->execute([(int)$ship['id']]);$item=$itemQuery->fetch(PDO::FETCH_ASSOC);
-        if(!$item){$pdo->rollBack();mpResponse(['error'=>'Equipamento rebocador indisponivel no catalogo.'],503);}
+        if(!$item){$pdo->rollBack();mpResponse(['error'=>'Equipamento rebocador indisponível no catélogo.'],503);}
         $install=$action==='tow-purchase'||!empty($input['installed']);
         if($action==='tow-purchase'&&!(int)($item['quantity']??0)){
             if($credits<12000){$missing=12000-$credits;$pdo->rollBack();mpResponse(['error'=>'Compra nao realizada. Saldo atual: '.$credits.' CR; faltam '.$missing.' CR.'],409);}
@@ -714,13 +779,13 @@ try {
         if(!$tug||(int)$tug['hull_hp']<1||$tug['docked_station_id']!==null){$pdo->rollBack();mpResponse(['error'=>'Equipe o rebocador e desacople sua nave antes do resgate.'],409);}
         $targetQuery=$pdo->prepare('SELECT id,user_id,pos_x,pos_z,hull_hp,fuel_units,docked_station_id FROM ships WHERE user_id=? AND is_active=1 LIMIT 1 FOR UPDATE');
         $targetQuery->execute([$targetUserId]);$target=$targetQuery->fetch(PDO::FETCH_ASSOC);
-        if(!$target||(int)$target['hull_hp']<1||(float)$target['fuel_units']>0||(int)($target['docked_station_id']??0)>0){$pdo->rollBack();mpResponse(['error'=>'A nave precisa estar ativa, fora da esta??o e sem combust?vel.'],409);}
+        if(!$target||(int)$target['hull_hp']<1||(float)$target['fuel_units']>0||(int)($target['docked_station_id']??0)>0){$pdo->rollBack();mpResponse(['error'=>'A nave precisa estar ativa, fora da estação e sem combustível.'],409);}
         if(hypot((float)$tug['pos_x']-(float)$target['pos_x'],(float)$tug['pos_z']-(float)$target['pos_z'])>2500){$pdo->rollBack();mpResponse(['error'=>'Aproxime-se a 2.500 km da nave para conectar o cabo.'],409);}
         $existing=$pdo->prepare("SELECT id FROM ship_rescue_requests WHERE target_ship_id=? AND status IN ('pending','active') LIMIT 1 FOR UPDATE");$existing->execute([(int)$target['id']]);
-        if($existing->fetchColumn()){$pdo->rollBack();mpResponse(['error'=>'Esta nave j? tem um pedido ou reboque em andamento.'],409);}
+        if($existing->fetchColumn()){$pdo->rollBack();mpResponse(['error'=>'Esta nave já tem um pedido ou reboque em andamento.'],409);}
         $stationQuery=$pdo->prepare('SELECT id,name,pos_x,pos_z FROM space_stations WHERE is_active=1 AND hull_hp>0 ORDER BY POW(pos_x-?,2)+POW(pos_z-?,2),id LIMIT 1 FOR UPDATE');
         $stationQuery->execute([(float)$target['pos_x'],(float)$target['pos_z']]);$station=$stationQuery->fetch(PDO::FETCH_ASSOC);
-        if(!$station){$pdo->rollBack();mpResponse(['error'=>'Nenhuma esta??o operacional foi localizada.'],409);}
+        if(!$station){$pdo->rollBack();mpResponse(['error'=>'Nenhuma estação operacional foi localizada.'],409);}
         $distance=hypot((float)$station['pos_x']-(float)$target['pos_x'],(float)$station['pos_z']-(float)$target['pos_z']);$duration=max(60,min(300,(int)ceil($distance/1500)));
         $pdo->prepare("INSERT INTO ship_rescue_requests(tug_ship_id,target_ship_id,tug_user_id,target_user_id,station_id,origin_x,origin_z,destination_x,destination_z,duration_seconds) VALUES(?,?,?,?,?,?,?,?,?,?)")->execute([(int)$tug['id'],(int)$target['id'],$userId,$targetUserId,(int)$station['id'],(float)$target['pos_x'],(float)$target['pos_z'],(float)$station['pos_x'],(float)$station['pos_z'],$duration]);
         $id=(int)$pdo->lastInsertId();$pdo->commit();mpResponse(['ok'=>true,'requestId'=>$id,'station'=>$station['name'],'duration'=>$duration]);
@@ -729,16 +794,16 @@ try {
     if ($action === 'tow-rescue-response') {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error'=>'Use POST para responder ao resgate.'],405);
         mpEnsureTowSystem($pdo);$input=mpInput();$requestId=(int)($input['request_id']??0);$accept=!empty($input['accept']);
-        if($requestId<1)mpResponse(['error'=>'Pedido de resgate inv?lido.'],400);
+        if($requestId<1)mpResponse(['error'=>'Pedido de resgate inválido.'],400);
         $pdo->beginTransaction();
         $requestQuery=$pdo->prepare("SELECT r.*,s.hull_hp,s.fuel_units,s.docked_station_id,s.pos_x AS target_x,s.pos_z AS target_z,t.pos_x AS tug_x,t.pos_z AS tug_z,t.hull_hp AS tug_hull,t.docked_station_id AS tug_docked,EXISTS(SELECT 1 FROM ship_equipment se JOIN equipment e ON e.id=se.equipment_id WHERE se.ship_id=t.id AND se.is_equipped=1 AND se.quantity>0 AND e.code='tractor_array') AS tug_equipped FROM ship_rescue_requests r JOIN ships s ON s.id=r.target_ship_id JOIN ships t ON t.id=r.tug_ship_id WHERE r.id=? AND r.target_user_id=? AND r.status='pending' FOR UPDATE");
         $requestQuery->execute([$requestId,$userId]);$request=$requestQuery->fetch(PDO::FETCH_ASSOC);
-        if(!$request){$pdo->rollBack();mpResponse(['error'=>'Este pedido j? expirou ou foi respondido.'],409);}
+        if(!$request){$pdo->rollBack();mpResponse(['error'=>'Este pedido já expirou ou foi respondido.'],409);}
         if(!$accept){$pdo->prepare("UPDATE ship_rescue_requests SET status='declined' WHERE id=?")->execute([$requestId]);$pdo->commit();mpResponse(['ok'=>true,'accepted'=>false]);}
-        if((int)$request['hull_hp']<1||(float)$request['fuel_units']>0||(int)($request['docked_station_id']??0)>0){$pdo->rollBack();mpResponse(['error'=>'A nave j? n?o est? eleg?vel para resgate.'],409);}
-        if((int)$request['tug_hull']<1||(int)$request['tug_equipped']!==1||$request['tug_docked']!==null||hypot((float)$request['tug_x']-(float)$request['target_x'],(float)$request['tug_z']-(float)$request['target_z'])>2500){$pdo->rollBack();mpResponse(['error'=>'A nave de resgate saiu do alcance ou j? n?o tem o rebocador ativo.'],409);}
+        if((int)$request['hull_hp']<1||(float)$request['fuel_units']>0||(int)($request['docked_station_id']??0)>0){$pdo->rollBack();mpResponse(['error'=>'A nave já não está elegível para resgate.'],409);}
+        if((int)$request['tug_hull']<1||(int)$request['tug_equipped']!==1||$request['tug_docked']!==null||hypot((float)$request['tug_x']-(float)$request['target_x'],(float)$request['tug_z']-(float)$request['target_z'])>2500){$pdo->rollBack();mpResponse(['error'=>'A nave de resgate saiu do alcance ou já não tem o rebocador ativo.'],409);}
         $active=$pdo->prepare("SELECT id FROM ship_rescue_requests WHERE target_ship_id=? AND status='active' LIMIT 1 FOR UPDATE");$active->execute([(int)$request['target_ship_id']]);
-        if($active->fetchColumn()){$pdo->rollBack();mpResponse(['error'=>'Outro resgate j? foi conectado.'],409);}
+        if($active->fetchColumn()){$pdo->rollBack();mpResponse(['error'=>'Outro resgate já foi conectado.'],409);}
         $pdo->prepare("UPDATE ship_rescue_requests SET status='active',accepted_at=NOW() WHERE id=?")->execute([$requestId]);$pdo->commit();mpResponse(['ok'=>true,'accepted'=>true,'stationId'=>(int)$request['station_id']]);
     }
 
@@ -751,9 +816,9 @@ try {
         $wreckQuery=$pdo->prepare("SELECT w.id,w.destroyed_ship_id,w.owner_user_id,w.pos_x,w.pos_z,s.hull_hp FROM ship_wrecks w JOIN ships s ON s.id=w.destroyed_ship_id WHERE w.id=? AND w.drop_type='wreck' AND w.claimed_by IS NULL FOR UPDATE");$wreckQuery->execute([$wreckId]);$wreck=$wreckQuery->fetch(PDO::FETCH_ASSOC);
         if(!$wreck||(int)$wreck['owner_user_id']===$userId||(int)$wreck['hull_hp']>0){$pdo->rollBack();mpResponse(['error'=>'Este sinal nao pertence a uma nave abandonada que possa ser rebocada.'],409);}
         if(hypot((float)$tug['pos_x']-(float)$wreck['pos_x'],(float)$tug['pos_z']-(float)$wreck['pos_z'])>2500){$pdo->rollBack();mpResponse(['error'=>'Aproxime-se a 2.500 km dos destrocos para conectar o cabo.'],409);}
-        $existing=$pdo->prepare("SELECT id FROM ship_tows WHERE wreck_id=? AND status='active' LIMIT 1");$existing->execute([$wreckId]);if($existing->fetchColumn()){$pdo->rollBack();mpResponse(['error'=>'Outro piloto ja esta rebocando esta nave.'],409);}
+        $existing=$pdo->prepare("SELECT id FROM ship_tows WHERE wreck_id=? AND status='active' LIMIT 1");$existing->execute([$wreckId]);if($existing->fetchColumn()){$pdo->rollBack();mpResponse(['error'=>'Outro piloto já está rebocando está nave.'],409);}
         $stationQuery=$pdo->prepare('SELECT id,name,pos_x,pos_z FROM space_stations WHERE is_active=1 AND hull_hp>0 ORDER BY POW(pos_x-?,2)+POW(pos_z-?,2),id LIMIT 1 FOR UPDATE');$stationQuery->execute([(float)$wreck['pos_x'],(float)$wreck['pos_z']]);$station=$stationQuery->fetch(PDO::FETCH_ASSOC);
-        if(!$station){$pdo->rollBack();mpResponse(['error'=>'Nenhuma estacao operacional foi localizada.'],409);}
+        if(!$station){$pdo->rollBack();mpResponse(['error'=>'Nenhuma estação operacional foi localizada.'],409);}
         $distance=hypot((float)$station['pos_x']-(float)$wreck['pos_x'],(float)$station['pos_z']-(float)$wreck['pos_z']);$duration=max(30,min(120,(int)ceil($distance/1500)));
         $pdo->prepare("INSERT INTO ship_tows(tug_ship_id,rescued_ship_id,wreck_id,rescuer_user_id,station_id,origin_x,origin_z,destination_x,destination_z,duration_seconds) VALUES(?,?,?,?,?,?,?,?,?,?)")->execute([(int)$tug['id'],(int)$wreck['destroyed_ship_id'],$wreckId,$userId,(int)$station['id'],(float)$wreck['pos_x'],(float)$wreck['pos_z'],(float)$station['pos_x'],(float)$station['pos_z'],$duration]);
         $towId=(int)$pdo->lastInsertId();$pdo->commit();mpResponse(['ok'=>true,'towId'=>$towId,'duration'=>$duration,'station'=>$station['name']]);
@@ -785,20 +850,20 @@ try {
     }
 
     if ($action === 'weapon-toggle') {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error'=>'Use POST para montar ou retirar o canh?o.'],405);
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error'=>'Use POST para montar ou retirar o canhão.'],405);
         $input=mpInput(); $mount=!empty($input['mounted']);
         $kinds=['pulse'=>'pulse_cannon','ion'=>'ion_cannon','heavy'=>'heavy_plasma_cannon','singularity'=>'singularity_cannon'];
         $kind=(string)($input['kind']??'');
-        if (!isset($kinds[$kind])) mpResponse(['error'=>'Canh?o inv?lido.'],400);
+        if (!isset($kinds[$kind])) mpResponse(['error'=>'Canhão inválido.'],400);
         $code=$kinds[$kind]; $pdo->beginTransaction();
         $shipQuery=$pdo->prepare('SELECT id,hull_hp,ship_class,cargo_capacity_kg,iron_kg,nickel_kg,cobalt_kg,fuel_units,selected_weapon_code FROM ships WHERE user_id=? AND is_active=1 LIMIT 1 FOR UPDATE');
         $shipQuery->execute([$userId]); $ship=$shipQuery->fetch(PDO::FETCH_ASSOC);
-        if (!$ship || (int)$ship['hull_hp']<1) { $pdo->rollBack(); mpResponse(['error'=>'Sua nave n?o est? operacional.'],409); }
+        if (!$ship || (int)$ship['hull_hp']<1) { $pdo->rollBack(); mpResponse(['error'=>'Sua nave não está operacional.'],409); }
         $itemQuery=$pdo->prepare('SELECT e.id,e.damage,e.ammo_capacity,e.weight_kg,se.ammo_current FROM ship_equipment se JOIN equipment e ON e.id=se.equipment_id WHERE se.ship_id=? AND e.code=? AND se.quantity>0 FOR UPDATE');
         $itemQuery->execute([(int)$ship['id'],$code]); $item=$itemQuery->fetch(PDO::FETCH_ASSOC);
-        if (!$item) { $pdo->rollBack(); mpResponse(['error'=>'Esse canh?o n?o est? no invent?rio da nave.'],409); }
+        if (!$item) { $pdo->rollBack(); mpResponse(['error'=>'Esse canhão não está no inventário da nave.'],409); }
         if ($mount && $ship['ship_class']==='freighter') { $pdo->rollBack(); mpResponse(['error'=>'O cargueiro Atlas nao aceita canhoes.'],409); }
-        if ($mount && (int)$ship['iron_kg']+(int)$ship['nickel_kg']+(int)$ship['cobalt_kg']+(int)$item['weight_kg']+(int)ceil((float)$ship['fuel_units']*0.5)>(int)$ship['cargo_capacity_kg']) { $pdo->rollBack(); mpResponse(['error'=>'A carga e o peso deste canh?o excedem os 2.000 kg. Venda ou deposite min?rio antes de montar.'],409); }
+        if ($mount && (int)$ship['iron_kg']+(int)$ship['nickel_kg']+(int)$ship['cobalt_kg']+(int)$item['weight_kg']+(int)ceil((float)$ship['fuel_units']*0.5)>(int)$ship['cargo_capacity_kg']) { $pdo->rollBack(); mpResponse(['error'=>'A carga e o peso deste canhão excedem os 2.000 kg. Venda ou deposite minério antes de montar.'],409); }
         if ($mount) {
             $pdo->prepare("UPDATE ship_equipment se JOIN equipment e ON e.id=se.equipment_id SET se.is_equipped=0 WHERE se.ship_id=? AND e.equipment_type='weapon'")->execute([(int)$ship['id']]);
             $pdo->prepare('UPDATE ship_equipment SET is_equipped=1 WHERE ship_id=? AND equipment_id=?')->execute([(int)$ship['id'],(int)$item['id']]);
@@ -814,29 +879,29 @@ try {
     }
 
     if ($action === 'weapon-purchase') {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error'=>'Use POST para adquirir o canh?o.'],405);
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error'=>'Use POST para adquirir o canhão.'],405);
         $input=mpInput();
         $stationCode=strtolower(trim((string)($input['station']??'')));
-        if (!preg_match('/^[a-z0-9_-]{2,40}$/',$stationCode)) mpResponse(['error'=>'Esta??o inv?lida.'],400);
+        if (!preg_match('/^[a-z0-9_-]{2,40}$/',$stationCode)) mpResponse(['error'=>'Estação inválida.'],400);
         $stationQuery=$pdo->prepare('SELECT id,pos_x,pos_z,hull_hp FROM space_stations WHERE code=? AND is_active=1 LIMIT 1');
         $stationQuery->execute([$stationCode]); $station=$stationQuery->fetch(PDO::FETCH_ASSOC);
-        if (!$station) mpResponse(['error'=>'Esta??o indispon?vel.'],404);
-        if ((int)$station['hull_hp']<1) mpResponse(['error'=>'Terminal offline: estacao desativada.'],409);
+        if (!$station) mpResponse(['error'=>'Estação indisponível.'],404);
+        if ((int)$station['hull_hp']<1) mpResponse(['error'=>'Terminal offline: estação desativada.'],409);
         $pdo->beginTransaction();
         $shipQuery=$pdo->prepare('SELECT id,pos_x,pos_z,hull_hp,ship_class,iron_kg,nickel_kg,cobalt_kg,cargo_capacity_kg,fuel_units,(SELECT COALESCE(SUM(e.weight_kg),0) FROM ship_equipment se JOIN equipment e ON e.id=se.equipment_id WHERE se.ship_id=ships.id AND se.is_equipped=1 AND se.quantity>0) AS weapon_weight FROM ships WHERE user_id=? AND is_active=1 LIMIT 1 FOR UPDATE');
         $shipQuery->execute([$userId]); $ship=$shipQuery->fetch(PDO::FETCH_ASSOC);
-        if (!$ship || (int)$ship['hull_hp']<1) { $pdo->rollBack(); mpResponse(['error'=>'Sua nave n?o est? operacional.'],409); }
+        if (!$ship || (int)$ship['hull_hp']<1) { $pdo->rollBack(); mpResponse(['error'=>'Sua nave não está operacional.'],409); }
         if ($ship['ship_class']==='freighter') { $pdo->rollBack(); mpResponse(['error'=>'O cargueiro Atlas nao pode receber armamento.'],409); }
-        if (hypot((float)$ship['pos_x']-(float)$station['pos_x'],(float)$ship['pos_z']-(float)$station['pos_z'])>2200) { $pdo->rollBack(); mpResponse(['error'=>'Aproxime-se a at? 2.200 km para comprar.'],409); }
+        if (hypot((float)$ship['pos_x']-(float)$station['pos_x'],(float)$ship['pos_z']-(float)$station['pos_z'])>2200) { $pdo->rollBack(); mpResponse(['error'=>'Aproxime-se a até 2.200 km para comprar.'],409); }
         $ownedQuery=$pdo->prepare("SELECT 1 FROM ship_equipment se JOIN equipment e ON e.id=se.equipment_id WHERE se.ship_id=? AND e.code='singularity_cannon' AND se.quantity>0 LIMIT 1 FOR UPDATE");
         $ownedQuery->execute([(int)$ship['id']]);
-        if ($ownedQuery->fetchColumn()) { $pdo->rollBack(); mpResponse(['error'=>'Sua nave j? possui este canh?o.'],409); }
+        if ($ownedQuery->fetchColumn()) { $pdo->rollBack(); mpResponse(['error'=>'Sua nave já possui este canhão.'],409); }
         $userQuery=$pdo->prepare('SELECT credits FROM users WHERE id=? FOR UPDATE'); $userQuery->execute([$userId]); $wallet=(int)$userQuery->fetchColumn();
         if ($wallet<50000) { $missing=50000-$wallet; $pdo->rollBack(); mpResponse(['error'=>'Compra nao realizada. Saldo atual: '.$wallet.' CR; faltam '.$missing.' CR.'],409); }
-        if ((int)$ship['iron_kg']<1000 || (int)$ship['nickel_kg']<700 || (int)$ship['cobalt_kg']<300) { $pdo->rollBack(); mpResponse(['error'=>'Carga insuficiente. Requisitos: 1.000 kg de ferro, 700 kg de n?quel e 300 kg de cobalto.'],409); }
-        $remainingCargo=(int)$ship['iron_kg']+(int)$ship['nickel_kg']+(int)$ship['cobalt_kg']-2000; if ($remainingCargo+700+(int)ceil((float)$ship['fuel_units']*0.5)>(int)$ship['cargo_capacity_kg']) { $pdo->rollBack(); mpResponse(['error'=>'Desocupe espa?o para o canh?o de 700 kg ap?s pagar o min?rio.'],409); }
+        if ((int)$ship['iron_kg']<1000 || (int)$ship['nickel_kg']<700 || (int)$ship['cobalt_kg']<300) { $pdo->rollBack(); mpResponse(['error'=>'Carga insuficiente. Requisitos: 1.000 kg de ferro, 700 kg de níquel e 300 kg de cobalto.'],409); }
+        $remainingCargo=(int)$ship['iron_kg']+(int)$ship['nickel_kg']+(int)$ship['cobalt_kg']-2000; if ($remainingCargo+700+(int)ceil((float)$ship['fuel_units']*0.5)>(int)$ship['cargo_capacity_kg']) { $pdo->rollBack(); mpResponse(['error'=>'Desocupe espaço para o canhão de 700 kg após pagar o minério.'],409); }
         $equipmentQuery=$pdo->prepare("SELECT id FROM equipment WHERE code='singularity_cannon' AND is_available=1 LIMIT 1"); $equipmentQuery->execute(); $equipmentId=(int)$equipmentQuery->fetchColumn();
-        if (!$equipmentId) { $pdo->rollBack(); mpResponse(['error'=>'Canh?o ainda n?o cadastrado no cat?logo do servidor.'],503); }
+        if (!$equipmentId) { $pdo->rollBack(); mpResponse(['error'=>'Canhão ainda não cadastrado no catélogo do servidor.'],503); }
         $pdo->prepare('UPDATE users SET credits=credits-50000 WHERE id=?')->execute([$userId]);
         $pdo->prepare('UPDATE ships SET iron_kg=iron_kg-1000,nickel_kg=nickel_kg-700,cobalt_kg=cobalt_kg-300 WHERE id=?')->execute([(int)$ship['id']]);
         $pdo->prepare("UPDATE ship_equipment se JOIN equipment e ON e.id=se.equipment_id SET se.is_equipped=0 WHERE se.ship_id=? AND e.equipment_type='weapon'")->execute([(int)$ship['id']]);
@@ -852,7 +917,7 @@ try {
         $stationQuery=$pdo->prepare('SELECT id,code,name,pos_x,pos_z,hull_hp FROM space_stations WHERE code=? AND is_active=1 LIMIT 1');
         $stationQuery->execute([$stationCode]); $station=$stationQuery->fetch(PDO::FETCH_ASSOC);
         if (!$station) mpResponse(['error'=>'Banco desta estação não encontrado.'],404);
-        if ((int)$station['hull_hp']<1) mpResponse(['error'=>'Terminal offline: estacao desativada.'],409);
+        if ((int)$station['hull_hp']<1) mpResponse(['error'=>'Terminal offline: estação desativada.'],409);
         $method=$_SERVER['REQUEST_METHOD'];
         if ($method==='POST') {
             $input=mpInput(); $operation=(string)($input['operation']??''); $resource=(string)($input['resource']??'');
@@ -864,7 +929,7 @@ try {
             $pdo->beginTransaction();
             $shipQuery=$pdo->prepare('SELECT id,pos_x,pos_z,hull_hp,iron_kg,nickel_kg,cobalt_kg,ice_kg,energy_units,cargo_capacity_kg,fuel_units,fuel_capacity_units,(SELECT COALESCE(SUM(e.weight_kg),0) FROM ship_equipment se JOIN equipment e ON e.id=se.equipment_id WHERE se.ship_id=ships.id AND se.is_equipped=1 AND se.quantity>0) AS weapon_weight FROM ships WHERE user_id=? AND is_active=1 LIMIT 1 FOR UPDATE');
             $shipQuery->execute([$userId]); $ship=$shipQuery->fetch(PDO::FETCH_ASSOC);
-            if (!$ship || (int)$ship['hull_hp']<1) { $pdo->rollBack(); mpResponse(['error'=>'Sua nave nao esta operacional.'],409); }
+            if (!$ship || (int)$ship['hull_hp']<1) { $pdo->rollBack(); mpResponse(['error'=>'Sua nave nao está operacional.'],409); }
             $distance=hypot((float)$ship['pos_x']-(float)$station['pos_x'],(float)$ship['pos_z']-(float)$station['pos_z']);
             if ($distance>2200) { $pdo->rollBack(); mpResponse(['error'=>'Aproxime-se a ate 2.200 km para acessar o banco.'],409); }
             $pdo->prepare('INSERT IGNORE INTO station_bank_accounts (user_id,station_id) VALUES (?,?)')->execute([$userId,(int)$station['id']]);
@@ -885,7 +950,7 @@ try {
                     $pdo->prepare('UPDATE users SET credits=credits-? WHERE id=?')->execute([$amount,$userId]);
                     $pdo->prepare('UPDATE station_bank_accounts SET credits=credits+? WHERE id=?')->execute([$amount,$bankId]);
                 } else {
-                    if ((int)$bank['credits']<$amount) { $pdo->rollBack(); mpResponse(['error'=>'Saldo insuficiente no banco desta estacao.'],409); }
+                    if ((int)$bank['credits']<$amount) { $pdo->rollBack(); mpResponse(['error'=>'Saldo insuficiente no banco desta estação.'],409); }
                     $pdo->prepare('UPDATE station_bank_accounts SET credits=credits-? WHERE id=?')->execute([$amount,$bankId]);
                     $pdo->prepare('UPDATE users SET credits=credits+? WHERE id=?')->execute([$amount,$userId]);
                 }
@@ -895,7 +960,7 @@ try {
                 $storedQuery=$pdo->prepare('SELECT quantity FROM station_bank_items WHERE bank_id=? AND item_code=? FOR UPDATE'); $storedQuery->execute([$bankId,$resource]); $stored=(int)$storedQuery->fetchColumn();
                 if ($stored<$amount) { $pdo->rollBack(); mpResponse(['error'=>'Quantidade insuficiente no cofre.'],409); }
                 $gearQuery=$pdo->prepare('SELECT id,ammo_capacity FROM equipment WHERE code=? AND is_available=1 LIMIT 1'); $gearQuery->execute([$equipmentCode]); $gear=$gearQuery->fetch(PDO::FETCH_ASSOC);
-                if (!$gear) { $pdo->rollBack(); mpResponse(['error'=>'Equipamento nao encontrado no catalogo.'],404); }
+                if (!$gear) { $pdo->rollBack(); mpResponse(['error'=>'Equipamento nao encontrado no catélogo.'],404); }
                 $ammoKey='ammo:'.$equipmentCode; $ammoQuery=$pdo->prepare('SELECT quantity FROM station_bank_items WHERE bank_id=? AND item_code=? FOR UPDATE'); $ammoQuery->execute([$bankId,$ammoKey]); $storedAmmo=(int)$ammoQuery->fetchColumn(); $ammo=min((int)$gear['ammo_capacity'],$storedAmmo);
                 $pdo->prepare('INSERT INTO ship_equipment (ship_id,equipment_id,quantity,ammo_current,is_equipped) VALUES (?,?,?, ?,0) ON DUPLICATE KEY UPDATE quantity=quantity+VALUES(quantity),ammo_current=GREATEST(ammo_current,VALUES(ammo_current))')->execute([(int)$ship['id'],(int)$gear['id'],$amount,$ammo]);
                 $pdo->prepare('UPDATE station_bank_items SET quantity=quantity-? WHERE bank_id=? AND item_code=?')->execute([$amount,$bankId,$resource]);
@@ -908,7 +973,7 @@ try {
                     $pdo->prepare('INSERT INTO station_bank_items (bank_id,item_code,quantity) VALUES (?,?,?) ON DUPLICATE KEY UPDATE quantity=quantity+VALUES(quantity)')->execute([$bankId,$resource,$amount]);
                 } else {
                     $storedQuery=$pdo->prepare('SELECT quantity FROM station_bank_items WHERE bank_id=? AND item_code=? FOR UPDATE'); $storedQuery->execute([$bankId,$resource]); $stored=(int)$storedQuery->fetchColumn();
-                    if ($stored<$amount) { $pdo->rollBack(); mpResponse(['error'=>'Quantidade insuficiente no cofre da estacao.'],409); }
+                    if ($stored<$amount) { $pdo->rollBack(); mpResponse(['error'=>'Quantidade insuficiente no cofre da estação.'],409); }
                     if ($resource==='fuel' && (float)$ship['fuel_units']+$amount>(int)$ship['fuel_capacity_units']) { $pdo->rollBack(); mpResponse(['error'=>'O tanque da nave nao tem espaco para esse combustivel.'],409); }
                     if (in_array($resource,['iron','nickel','cobalt','ice'],true) && (int)$ship['iron_kg']+(int)$ship['nickel_kg']+(int)$ship['cobalt_kg']+(int)$ship['ice_kg']+(int)$ship['weapon_weight']+(int)ceil((float)$ship['fuel_units']*0.5)+$amount>(int)$ship['cargo_capacity_kg']) { $pdo->rollBack(); mpResponse(['error'=>'O compartimento da nave nao tem espaco para essa carga.'],409); }
                     $pdo->prepare('UPDATE station_bank_items SET quantity=quantity-? WHERE bank_id=? AND item_code=?')->execute([$amount,$bankId,$resource]);
@@ -929,9 +994,9 @@ try {
         $stationCode=strtolower(trim((string)($_GET['station']??'')));
         if (!preg_match('/^[a-z0-9_-]{2,40}$/',$stationCode)) mpResponse(['error'=>'Estacao invalida.'],400);
         $stationQuery=$pdo->prepare('SELECT id,name,pos_x,pos_z,hull_hp FROM space_stations WHERE code=? AND is_active=1 LIMIT 1'); $stationQuery->execute([$stationCode]); $station=$stationQuery->fetch(PDO::FETCH_ASSOC);
-        if (!$station || (int)$station['hull_hp']<1) mpResponse(['error'=>'Estacao indisponivel.'],409);
+        if (!$station || (int)$station['hull_hp']<1) mpResponse(['error'=>'Estacao indisponível.'],409);
         $activeQuery=$pdo->prepare('SELECT id,pos_x,pos_z FROM ships WHERE user_id=? AND is_active=1 LIMIT 1'); $activeQuery->execute([$userId]); $active=$activeQuery->fetch(PDO::FETCH_ASSOC);
-        if (!$active || hypot((float)$active['pos_x']-(float)$station['pos_x'],(float)$active['pos_z']-(float)$station['pos_z'])>2200) mpResponse(['error'=>'Aproxime-se da estacao para acessar o estaleiro.'],409);
+        if (!$active || hypot((float)$active['pos_x']-(float)$station['pos_x'],(float)$active['pos_z']-(float)$station['pos_z'])>2200) mpResponse(['error'=>'Aproxime-se da estação para acessar o estáleiro.'],409);
         $fleetQuery=$pdo->prepare('SELECT id,ship_name,ship_class,cargo_capacity_kg,fuel_capacity_units,fuel_units,hull_hp,is_active,docked_station_id FROM ships WHERE user_id=? ORDER BY is_active DESC,id'); $fleetQuery->execute([$userId]);
         $fleet=array_map(static fn($ship)=>['id'=>(int)$ship['id'],'name'=>$ship['ship_name'],'model'=>$ship['ship_class'],'cargoCapacity'=>(int)$ship['cargo_capacity_kg'],'fuelCapacity'=>(int)$ship['fuel_capacity_units'],'fuel'=>(float)$ship['fuel_units'],'hull'=>(int)$ship['hull_hp'],'active'=>(bool)$ship['is_active'],'storedAt'=>(int)($ship['docked_station_id']??0),'availableHere'=>(int)($ship['docked_station_id']??0)===(int)$station['id']],$fleetQuery->fetchAll(PDO::FETCH_ASSOC));
         $walletQuery=$pdo->prepare('SELECT credits FROM users WHERE id=?'); $walletQuery->execute([$userId]);
@@ -942,13 +1007,13 @@ try {
         if ($_SERVER['REQUEST_METHOD']!=='POST') mpResponse(['error'=>'Use POST para adquirir uma nave.'],405);
         $input=mpInput(); $stationCode=strtolower(trim((string)($input['station']??''))); $model=(string)($input['model']??'');
         $catalog=['freighter'=>['name'=>'Atlas Hauler','price'=>220000,'cargo'=>12000,'fuel'=>1800,'hull'=>170],'attack'=>['name'=>'Viper Interceptor','price'=>380000,'cargo'=>1500,'fuel'=>1000,'hull'=>180]];
-        if (!preg_match('/^[a-z0-9_-]{2,40}$/',$stationCode) || !isset($catalog[$model])) mpResponse(['error'=>'Nave ou estacao invalida.'],400);
+        if (!preg_match('/^[a-z0-9_-]{2,40}$/',$stationCode) || !isset($catalog[$model])) mpResponse(['error'=>'Nave ou estação invalida.'],400);
         $stationQuery=$pdo->prepare('SELECT id,name,pos_x,pos_z,hull_hp FROM space_stations WHERE code=? AND is_active=1 LIMIT 1'); $stationQuery->execute([$stationCode]); $station=$stationQuery->fetch(PDO::FETCH_ASSOC);
-        if (!$station || (int)$station['hull_hp']<1) mpResponse(['error'=>'Estacao indisponivel para venda.'],409);
+        if (!$station || (int)$station['hull_hp']<1) mpResponse(['error'=>'Estacao indisponível para venda.'],409);
         $pdo->beginTransaction();
         $shipQuery=$pdo->prepare('SELECT id,pos_x,pos_z,hull_hp FROM ships WHERE user_id=? AND is_active=1 LIMIT 1 FOR UPDATE'); $shipQuery->execute([$userId]); $active=$shipQuery->fetch(PDO::FETCH_ASSOC);
-        if (!$active || (int)$active['hull_hp']<1) { $pdo->rollBack(); mpResponse(['error'=>'A nave atual precisa estar operacional para trocar no estaleiro.'],409); }
-        if (hypot((float)$active['pos_x']-(float)$station['pos_x'],(float)$active['pos_z']-(float)$station['pos_z'])>2200) { $pdo->rollBack(); mpResponse(['error'=>'Aproxime-se da estacao para comprar uma nave.'],409); }
+        if (!$active || (int)$active['hull_hp']<1) { $pdo->rollBack(); mpResponse(['error'=>'A nave atual precisa estar operacional para trocar no estáleiro.'],409); }
+        if (hypot((float)$active['pos_x']-(float)$station['pos_x'],(float)$active['pos_z']-(float)$station['pos_z'])>2200) { $pdo->rollBack(); mpResponse(['error'=>'Aproxime-se da estação para comprar uma nave.'],409); }
         $crewCheck=$pdo->prepare("SELECT 1 FROM ship_crew WHERE (captain_id=? OR copilot_id=?) AND status='active' LIMIT 1"); $crewCheck->execute([$userId,$userId]);
         if ($crewCheck->fetchColumn()) { $pdo->rollBack(); mpResponse(['error'=>'Encerre a tripulacao antes de trocar de nave.'],409); }
         $walletQuery=$pdo->prepare('SELECT credits FROM users WHERE id=? FOR UPDATE'); $walletQuery->execute([$userId]); $credits=(int)$walletQuery->fetchColumn(); $spec=$catalog[$model];
@@ -960,7 +1025,7 @@ try {
         $newShipId=(int)$pdo->lastInsertId();
         if ($model==='attack') {
             $weaponQuery=$pdo->prepare("SELECT id FROM equipment WHERE code='heavy_plasma_cannon' AND is_available=1 LIMIT 1"); $weaponQuery->execute(); $weaponId=(int)$weaponQuery->fetchColumn();
-            if (!$weaponId) { $pdo->rollBack(); mpResponse(['error'=>'Canhao padrao indisponivel no catalogo.'],503); }
+            if (!$weaponId) { $pdo->rollBack(); mpResponse(['error'=>'Canhão padrão indisponível no catélogo.'],503); }
             $pdo->prepare('INSERT INTO ship_equipment (ship_id,equipment_id,quantity,ammo_current,is_equipped) VALUES (?,?,1,90,1)')->execute([$newShipId,$weaponId]);
         }
         $pdo->prepare('UPDATE users SET credits=credits-? WHERE id=?')->execute([$spec['price'],$userId]);
@@ -972,11 +1037,11 @@ try {
         if ($_SERVER['REQUEST_METHOD']!=='POST') mpResponse(['error'=>'Use POST para selecionar uma nave.'],405);
         $input=mpInput(); $stationCode=strtolower(trim((string)($input['station']??''))); $shipId=(int)($input['ship_id']??0);
         $stationQuery=$pdo->prepare('SELECT id,pos_x,pos_z,hull_hp FROM space_stations WHERE code=? AND is_active=1 LIMIT 1'); $stationQuery->execute([$stationCode]); $station=$stationQuery->fetch(PDO::FETCH_ASSOC);
-        if (!$station || (int)$station['hull_hp']<1 || $shipId<1) mpResponse(['error'=>'Estacao ou nave indisponivel.'],409);
+        if (!$station || (int)$station['hull_hp']<1 || $shipId<1) mpResponse(['error'=>'Estacao ou nave indisponível.'],409);
         $pdo->beginTransaction();
         $shipQuery=$pdo->prepare('SELECT id,pos_x,pos_z,hull_hp,docked_station_id FROM ships WHERE user_id=? AND is_active=1 LIMIT 1 FOR UPDATE'); $shipQuery->execute([$userId]); $active=$shipQuery->fetch(PDO::FETCH_ASSOC);
         $storedQuery=$pdo->prepare('SELECT id FROM ships WHERE id=? AND user_id=? AND is_active=0 AND docked_station_id=? FOR UPDATE'); $storedQuery->execute([$shipId,$userId,(int)$station['id']]); $stored=$storedQuery->fetchColumn();
-        if (!$active || !$stored || hypot((float)$active['pos_x']-(float)$station['pos_x'],(float)$active['pos_z']-(float)$station['pos_z'])>2200) { $pdo->rollBack(); mpResponse(['error'=>'Nave guardada nao encontrada neste estaleiro ou nave atual fora de alcance.'],409); }
+        if (!$active || !$stored || hypot((float)$active['pos_x']-(float)$station['pos_x'],(float)$active['pos_z']-(float)$station['pos_z'])>2200) { $pdo->rollBack(); mpResponse(['error'=>'Nave guardada nao encontrada neste estáleiro ou nave atual fora de alcance.'],409); }
         $crewCheck=$pdo->prepare("SELECT 1 FROM ship_crew WHERE ship_id=? AND status='active' LIMIT 1"); $crewCheck->execute([(int)$active['id']]);
         if ($crewCheck->fetchColumn()) { $pdo->rollBack(); mpResponse(['error'=>'Encerre a tripulacao antes de trocar de nave.'],409); }
         $pdo->prepare('UPDATE ships SET is_active=0,docked_station_id=?,pos_x=?,pos_y=0,pos_z=?,speed=0 WHERE id=?')->execute([(int)$station['id'],(float)$station['pos_x'],(float)$station['pos_z'],(int)$active['id']]);
@@ -990,18 +1055,18 @@ try {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error'=>'Use POST para abastecer a nave.'],405);
         $input=mpInput(); $stationCode=strtolower(trim((string)($input['station']??'')));
         $amount=filter_var($input['amount']??null,FILTER_VALIDATE_INT);
-        if (!preg_match('/^[a-z0-9_-]{2,40}$/',$stationCode) || $amount===false || $amount<1 || $amount>1000) mpResponse(['error'=>'Esta??o ou quantidade de combust?vel inv?lida.'],400);
+        if (!preg_match('/^[a-z0-9_-]{2,40}$/',$stationCode) || $amount===false || $amount<1 || $amount>1000) mpResponse(['error'=>'Estação ou quantidade de combustível inválida.'],400);
         $stationQuery=$pdo->prepare('SELECT id,name,pos_x,pos_z,hull_hp FROM space_stations WHERE code=? AND is_active=1 LIMIT 1'); $stationQuery->execute([$stationCode]); $station=$stationQuery->fetch(PDO::FETCH_ASSOC);
-        if (!$station || (int)$station['hull_hp']<1) mpResponse(['error'=>'Esta??o indispon?vel para abastecimento.'],409);
+        if (!$station || (int)$station['hull_hp']<1) mpResponse(['error'=>'Estação indisponível para abastecimento.'],409);
         $pdo->beginTransaction();
         $shipQuery=$pdo->prepare('SELECT id,pos_x,pos_z,hull_hp,fuel_units,fuel_capacity_units FROM ships WHERE user_id=? AND is_active=1 LIMIT 1 FOR UPDATE'); $shipQuery->execute([$userId]); $ship=$shipQuery->fetch(PDO::FETCH_ASSOC);
-        if (!$ship || (int)$ship['hull_hp']<1) { $pdo->rollBack(); mpResponse(['error'=>'Sua nave n?o est? operacional.'],409); }
-        if (hypot((float)$ship['pos_x']-(float)$station['pos_x'],(float)$ship['pos_z']-(float)$station['pos_z'])>2200) { $pdo->rollBack(); mpResponse(['error'=>'Aproxime-se a at? 2.200 km para abastecer.'],409); }
+        if (!$ship || (int)$ship['hull_hp']<1) { $pdo->rollBack(); mpResponse(['error'=>'Sua nave não está operacional.'],409); }
+        if (hypot((float)$ship['pos_x']-(float)$station['pos_x'],(float)$ship['pos_z']-(float)$station['pos_z'])>2200) { $pdo->rollBack(); mpResponse(['error'=>'Aproxime-se a até 2.200 km para abastecer.'],409); }
         $quantity=min((float)$amount,max(0,(int)$ship['fuel_capacity_units']-(float)$ship['fuel_units']));
-        if ($quantity<=0) { $pdo->rollBack(); mpResponse(['error'=>'O tanque j? est? cheio.'],409); }
+        if ($quantity<=0) { $pdo->rollBack(); mpResponse(['error'=>'O tanque já está cheio.'],409); }
         $cost=(int)ceil($quantity/10);
         $walletQuery=$pdo->prepare('SELECT credits FROM users WHERE id=? FOR UPDATE'); $walletQuery->execute([$userId]); $credits=(int)$walletQuery->fetchColumn();
-        if ($credits<$cost) { $pdo->rollBack(); mpResponse(['error'=>'Cr?ditos insuficientes. Cada 10 unidades custam 1 CR.'],409); }
+        if ($credits<$cost) { $pdo->rollBack(); mpResponse(['error'=>'Créditos insuficientes. Cada 10 unidades custam 1 CR.'],409); }
         $pdo->prepare('UPDATE ships SET fuel_units=LEAST(fuel_capacity_units,fuel_units+?) WHERE id=?')->execute([$quantity,(int)$ship['id']]);
         $pdo->prepare('UPDATE users SET credits=credits-? WHERE id=?')->execute([$cost,$userId]);
         $pdo->commit();
@@ -1015,16 +1080,17 @@ try {
         $input=mpInput(); $stationCode=strtolower(trim((string)($_GET['station']??$input['station']??'')));
         $resource=(string)($input['resource']??''); $source=(string)($input['source']??'ship');
         $amount=filter_var($input['amount']??null,FILTER_VALIDATE_INT);
-        if (!preg_match('/^[a-z0-9_-]{2,40}$/',$stationCode) || !in_array($resource,['iron','nickel','cobalt'],true) || !in_array($source,['ship','bank'],true) || $amount===false || $amount<1 || $amount>1000000) mpResponse(['error'=>'Estação, minério, quantidade ou origem inválida.'],400);
+        if (!preg_match('/^[a-z0-9_-]{2,40}$/',$stationCode) || !in_array($resource,['iron','nickel','cobalt','ice'],true) || !in_array($source,['ship','bank'],true) || $amount===false || $amount<1 || $amount>1000000) mpResponse(['error'=>'Estação, minério, quantidade ou origem inválida.'],400);
         $stationQuery=$pdo->prepare('SELECT id,code,name,pos_x,pos_z,hull_hp FROM space_stations WHERE code=? AND is_active=1 LIMIT 1'); $stationQuery->execute([$stationCode]); $station=$stationQuery->fetch(PDO::FETCH_ASSOC);
+        if ($resource==='ice') $pdo->prepare("INSERT IGNORE INTO mineral_catalog (code,name,unit_price_credits,is_available) VALUES ('ice','Gelo',5,1)")->execute();
         $priceQuery=$pdo->prepare('SELECT name,unit_price_credits FROM mineral_catalog WHERE code=? AND is_available=1'); $priceQuery->execute([$resource]); $mineral=$priceQuery->fetch(PDO::FETCH_ASSOC);
         if (!$station || !$mineral) mpResponse(['error'=>'Estação ou minério indisponível para venda.'],404);
-        if ((int)$station['hull_hp']<1) mpResponse(['error'=>'Terminal offline: estacao desativada.'],409);
+        if ((int)$station['hull_hp']<1) mpResponse(['error'=>'Terminal offline: estação desativada.'],409);
         $pdo->beginTransaction();
-        $shipQuery=$pdo->prepare('SELECT id,pos_x,pos_z,hull_hp,iron_kg,nickel_kg,cobalt_kg FROM ships WHERE user_id=? AND is_active=1 LIMIT 1 FOR UPDATE'); $shipQuery->execute([$userId]); $ship=$shipQuery->fetch(PDO::FETCH_ASSOC);
+        $shipQuery=$pdo->prepare('SELECT id,pos_x,pos_z,hull_hp,iron_kg,nickel_kg,cobalt_kg,ice_kg FROM ships WHERE user_id=? AND is_active=1 LIMIT 1 FOR UPDATE'); $shipQuery->execute([$userId]); $ship=$shipQuery->fetch(PDO::FETCH_ASSOC);
         if (!$ship || (int)$ship['hull_hp']<1) { $pdo->rollBack(); mpResponse(['error'=>'Sua nave não está operacional.'],409); }
         if (hypot((float)$ship['pos_x']-(float)$station['pos_x'],(float)$ship['pos_z']-(float)$station['pos_z'])>2200) { $pdo->rollBack(); mpResponse(['error'=>'Aproxime-se a até 2.200 km para negociar.'],409); }
-        $column=['iron'=>'iron_kg','nickel'=>'nickel_kg','cobalt'=>'cobalt_kg'][$resource];
+        $column=['iron'=>'iron_kg','nickel'=>'nickel_kg','cobalt'=>'cobalt_kg','ice'=>'ice_kg'][$resource];
         $bankId=0;
         if ($source==='ship') {
             if ((int)$ship[$column]<$amount) { $pdo->rollBack(); mpResponse(['error'=>'A nave não possui essa quantidade do minério.'],409); }
@@ -1043,7 +1109,41 @@ try {
         $cargoQuery=$pdo->prepare('SELECT iron_kg,nickel_kg,cobalt_kg FROM ships WHERE id=?'); $cargoQuery->execute([(int)$ship['id']]); $cargo=$cargoQuery->fetch(PDO::FETCH_ASSOC);
         $bankCredits=0; $bankItems=[];
         if ($bankId) { $bankBalance=$pdo->prepare('SELECT credits FROM station_bank_accounts WHERE id=?'); $bankBalance->execute([$bankId]); $bankCredits=(int)$bankBalance->fetchColumn(); $bankItemRows=$pdo->prepare('SELECT item_code,quantity FROM station_bank_items WHERE bank_id=?'); $bankItemRows->execute([$bankId]); foreach($bankItemRows->fetchAll(PDO::FETCH_ASSOC) as $row)$bankItems[$row['item_code']]=(int)$row['quantity']; }
-        mpResponse(['ok'=>true,'sold'=>['resource'=>$resource,'source'=>$source,'quantity'=>$amount,'unitPrice'=>$unitPrice,'total'=>$total,'basePrice'=>(int)$mineral['unit_price_credits'],'rate'=>50],'station'=>$station['name'],'credits'=>(int)$walletQuery->fetchColumn(),'cargo'=>['Ferro'=>(int)$cargo['iron_kg'],'Niquel'=>(int)$cargo['nickel_kg'],'Cobalto'=>(int)$cargo['cobalt_kg']],'bank'=>['credits'=>$bankCredits,'items'=>$bankItems]]);
+        mpResponse(['ok'=>true,'sold'=>['resource'=>$resource,'source'=>$source,'quantity'=>$amount,'unitPrice'=>$unitPrice,'total'=>$total,'basePrice'=>(int)$mineral['unit_price_credits'],'rate'=>50],'station'=>$station['name'],'credits'=>(int)$walletQuery->fetchColumn(),'cargo'=>['Ferro'=>(int)$cargo['iron_kg'],'Niquel'=>(int)$cargo['nickel_kg'],'Cobalto'=>(int)$cargo['cobalt_kg'],'Gelo'=>(int)$cargo['ice_kg']],'bank'=>['credits'=>$bankCredits,'items'=>$bankItems]]);
+    }
+
+    if ($action === 'weapon-sale') {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error'=>'Use POST para vender equipamento.'],405);
+        $input=mpInput(); $stationCode=strtolower(trim((string)($input['station']??''))); $item=(string)($input['item']??'');
+        $saleMap=['pulse'=>['pulse_cannon',60],'ion'=>['ion_cannon',130],'heavy'=>['heavy_plasma_cannon',250],'singularity'=>['singularity_cannon',25000],'upgrade'=>['pulse_capacitor_mk2',40]];
+        if (!preg_match('/^[a-z0-9_-]{2,40}$/',$stationCode) || (!isset($saleMap[$item]) && $item!=='ammo')) mpResponse(['error'=>'Estação ou item inválido.'],400);
+        $stationQuery=$pdo->prepare('SELECT id,pos_x,pos_z,hull_hp FROM space_stations WHERE code=? AND is_active=1 LIMIT 1'); $stationQuery->execute([$stationCode]); $station=$stationQuery->fetch(PDO::FETCH_ASSOC);
+        if (!$station || (int)$station['hull_hp']<1) mpResponse(['error'=>'Terminal indisponível.'],409);
+        $pdo->beginTransaction();
+        $shipQuery=$pdo->prepare('SELECT id,pos_x,pos_z,hull_hp,selected_weapon_code FROM ships WHERE user_id=? AND is_active=1 LIMIT 1 FOR UPDATE'); $shipQuery->execute([$userId]); $ship=$shipQuery->fetch(PDO::FETCH_ASSOC);
+        if (!$ship || (int)$ship['hull_hp']<1) { $pdo->rollBack(); mpResponse(['error'=>'Sua nave não está operacional.'],409); }
+        if (hypot((float)$ship['pos_x']-(float)$station['pos_x'],(float)$ship['pos_z']-(float)$station['pos_z'])>2200) { $pdo->rollBack(); mpResponse(['error'=>'Aproxime-se a até 2.200 km para vender.'],409); }
+        if ($item==='ammo') {
+            $query=$pdo->prepare("SELECT se.equipment_id,se.ammo_current FROM ship_equipment se JOIN equipment e ON e.id=se.equipment_id WHERE se.ship_id=? AND e.equipment_type='weapon' AND se.quantity>0 AND se.ammo_current>0 ORDER BY se.is_equipped DESC LIMIT 1 FOR UPDATE"); $query->execute([(int)$ship['id']]); $equipment=$query->fetch(PDO::FETCH_ASSOC);
+            if (!$equipment) { $pdo->rollBack(); mpResponse(['error'=>'A nave não possui munição para vender.'],409); }
+            $quantity=(int)$equipment['ammo_current']; $payout=intdiv($quantity,2);
+            $pdo->prepare('UPDATE ship_equipment SET ammo_current=0 WHERE ship_id=? AND equipment_id=?')->execute([(int)$ship['id'],(int)$equipment['equipment_id']]);
+        } else {
+            [$code,$payout]=$saleMap[$item];
+            $query=$pdo->prepare('SELECT e.id,se.is_equipped FROM ship_equipment se JOIN equipment e ON e.id=se.equipment_id WHERE se.ship_id=? AND e.code=? AND se.quantity>0 LIMIT 1 FOR UPDATE'); $query->execute([(int)$ship['id'],$code]); $equipment=$query->fetch(PDO::FETCH_ASSOC);
+            if (!$equipment) { $pdo->rollBack(); mpResponse(['error'=>'Esse item não está no inventário da nave.'],409); }
+            $pdo->prepare('UPDATE ship_equipment SET quantity=0,ammo_current=0,is_equipped=0 WHERE ship_id=? AND equipment_id=?')->execute([(int)$ship['id'],(int)$equipment['id']]);
+            if (!empty($equipment['is_equipped'])) {
+                $fallback=$pdo->prepare("SELECT e.code FROM ship_equipment se JOIN equipment e ON e.id=se.equipment_id WHERE se.ship_id=? AND se.quantity>0 AND e.equipment_type='weapon' ORDER BY se.acquired_at LIMIT 1"); $fallback->execute([(int)$ship['id']]);
+                $fallbackCode=$fallback->fetchColumn(); $next=(string)($fallbackCode ?: 'pulse_cannon');
+                $pdo->prepare('UPDATE ships SET selected_weapon_code=? WHERE id=?')->execute([$next,(int)$ship['id']]);
+                if ($fallbackCode!==false) $pdo->prepare('UPDATE ship_equipment se JOIN equipment e ON e.id=se.equipment_id SET se.is_equipped=1 WHERE se.ship_id=? AND e.code=? AND se.quantity>0')->execute([(int)$ship['id'],$next]);
+            }
+        }
+        $pdo->prepare('UPDATE users SET credits=credits+? WHERE id=?')->execute([$payout,$userId]);
+        $pdo->commit();
+        $wallet=$pdo->prepare('SELECT credits FROM users WHERE id=?'); $wallet->execute([$userId]);
+        mpResponse(['ok'=>true,'item'=>$item,'quantity'=>$quantity??1,'payout'=>$payout,'credits'=>(int)$wallet->fetchColumn()]);
     }
 
     if ($action === 'station-dock') {
@@ -1054,9 +1154,13 @@ try {
         $alreadyCrew=$pdo->prepare("SELECT 1 FROM ship_crew WHERE copilot_id=? AND status='active' LIMIT 1"); $alreadyCrew->execute([$userId]); if ($alreadyCrew->fetchColumn()) mpResponse(['error'=>'Desembarque da nave atual antes de acoplar outra.'],409);
         $pdo->beginTransaction();
         $q=$pdo->prepare('SELECT id,pos_x,pos_z,hull_hp,docked_station_id FROM ships WHERE user_id=? AND is_active=1 LIMIT 1 FOR UPDATE'); $q->execute([$userId]); $ship=$q->fetch(PDO::FETCH_ASSOC);
-        if (!$ship || (int)$ship['hull_hp']<1) { $pdo->rollBack(); mpResponse(['error'=>'Sua nave nao esta operacional.'],409); }
-        if (hypot((float)$ship['pos_x']-(float)$station['pos_x'],(float)$ship['pos_z']-(float)$station['pos_z'])>2200) { $pdo->rollBack(); mpResponse(['error'=>'Aproxime-se da estacao para acoplar.'],409); }
-        if ((int)$station['hull_hp']<1) { $pdo->rollBack(); mpResponse(['error'=>'A estacao esta inoperante.'],409); }
+        if (!$ship || (int)$ship['hull_hp']<1) { $pdo->rollBack(); mpResponse(['error'=>'Sua nave nao está operacional.'],409); }
+        if ($ship['docked_station_id']!==null && (int)$ship['docked_station_id']!==(int)$station['id']) { $pdo->rollBack(); mpResponse(['error'=>'Sua nave já está acoplada em outra estação. Desacople antes de trocar de estação.'],409); }
+        if (hypot((float)$ship['pos_x']-(float)$station['pos_x'],(float)$ship['pos_z']-(float)$station['pos_z'])>2200) { $pdo->rollBack(); mpResponse(['error'=>'Aproxime-se da estação para acoplar.'],409); }
+        if ((int)$station['hull_hp']<1) { $pdo->rollBack(); mpResponse(['error'=>'A estação está inoperante.'],409); }
+        $nearestQuery=$pdo->prepare('SELECT id,name FROM space_stations WHERE is_active=1 AND hull_hp>0 ORDER BY POW(pos_x-?,2)+POW(pos_z-?,2),id LIMIT 1');
+        $nearestQuery->execute([(float)$ship['pos_x'],(float)$ship['pos_z']]); $nearest=$nearestQuery->fetch(PDO::FETCH_ASSOC);
+        if (!$nearest || (int)$nearest['id']!==(int)$station['id']) { $pdo->rollBack(); mpResponse(['error'=>'A nave está mais proxima de outra estação. Selecione a estação mais proxima antes de acoplar.'],409); }
         $pdo->prepare('UPDATE ships SET pos_x=?,pos_y=0,pos_z=?,speed=0,docked_station_id=? WHERE id=?')->execute([$station['pos_x'],$station['pos_z'],(int)$station['id'],(int)$ship['id']]);
         $pdo->prepare("INSERT INTO station_occupants(user_id,station_id,mode,ship_id) VALUES(?,?,'station',NULL) ON DUPLICATE KEY UPDATE station_id=VALUES(station_id),mode='station',ship_id=NULL")->execute([$userId,(int)$station['id']]);
         $pdo->prepare("UPDATE ship_crew SET station_id=? WHERE ship_id=? AND status='active'")->execute([(int)$station['id'],(int)$ship['id']]);
@@ -1074,10 +1178,10 @@ try {
         $where=$pdo->prepare("SELECT station_id FROM station_occupants WHERE user_id=? AND mode='station' LIMIT 1");$where->execute([$userId]);$stationId=(int)$where->fetchColumn();
         if(!$stationId)mpResponse(['error'=>'Entre na estação para pedir carona.'],409);
         $shipQuery=$pdo->prepare("SELECT s.id,s.user_id,s.ship_class,s.docked_station_id,s.hull_hp,EXISTS(SELECT 1 FROM station_occupants so JOIN users u ON u.id=so.user_id WHERE so.user_id=s.user_id AND so.station_id=s.docked_station_id AND so.mode='station' AND u.last_seen_at>=DATE_SUB(NOW(),INTERVAL 30 SECOND)) AS pilot_present FROM ships s WHERE s.id=? AND s.is_active=1 AND s.docked_station_id=? AND s.user_id<>? FOR UPDATE");$shipQuery->execute([$shipId,$stationId,$userId]);$ship=$shipQuery->fetch(PDO::FETCH_ASSOC);
-        if(!$ship||(int)$ship['hull_hp']<1||(int)$ship['pilot_present']!==1)mpResponse(['error'=>'A nave ou o piloto nao esta disponivel nesta estação.'],409);
+        if(!$ship||(int)$ship['hull_hp']<1||(int)$ship['pilot_present']!==1)mpResponse(['error'=>'A nave ou o piloto nao está disponivel nestá estação.'],409);
         $dest=$pdo->prepare('SELECT id FROM space_stations WHERE id=? AND is_active=1 AND hull_hp>0');$dest->execute([$destinationId]);if(!$dest->fetchColumn()||$destinationId===$stationId)mpResponse(['error'=>'Escolha outra estação como destino.'],400);
         $passengerCheck=$pdo->prepare("SELECT 1 FROM ship_passengers WHERE passenger_id=? AND status='active' UNION SELECT 1 FROM ship_crew WHERE copilot_id=? AND status='active' LIMIT 1");$passengerCheck->execute([$userId,$userId]);if($passengerCheck->fetchColumn())mpResponse(['error'=>'Você já está embarcado em outra nave.'],409);
-        $count=$pdo->prepare("SELECT COUNT(*) FROM ship_passengers WHERE ship_id=? AND status='active'");$count->execute([$shipId]);$capacity=(string)$ship['ship_class']==='freighter'?12:((string)$ship['ship_class']==='attack'?2:4);if((int)$count->fetchColumn()>=$capacity)mpResponse(['error'=>'Essa nave está sem assentos disponíveis.'],409);
+        $count=$pdo->prepare("SELECT COUNT(*) FROM ship_passengers WHERE ship_id=? AND status='active'");$count->execute([$shipId]);$capacity=10;if((int)$count->fetchColumn()>=$capacity)mpResponse(['error'=>'Essa nave está sem assentos disponíveis.'],409);
         $existing=$pdo->prepare("SELECT id FROM ship_passenger_requests WHERE ship_id=? AND passenger_id=? AND status='pending' ORDER BY id DESC LIMIT 1");$existing->execute([$shipId,$userId]);$requestId=(int)$existing->fetchColumn();
         if(!$requestId){$insert=$pdo->prepare("INSERT INTO ship_passenger_requests(ship_id,passenger_id,origin_station_id,destination_station_id) VALUES(?,?,?,?)");$insert->execute([$shipId,$userId,$stationId,$destinationId]);$requestId=(int)$pdo->lastInsertId();}
         mpResponse(['ok'=>true,'request_id'=>$requestId,'message'=>'Pedido enviado ao piloto.']);
@@ -1088,13 +1192,14 @@ try {
         mpEnsurePassengerRequests($pdo);$input=mpInput();$requestId=(int)($input['request_id']??0);$accept=!empty($input['accept']);
         if($requestId<1)mpResponse(['error'=>'Pedido de carona invalido.'],400);
         $pdo->beginTransaction();$q=$pdo->prepare("SELECT r.*,s.user_id AS pilot_id,s.is_active,s.docked_station_id,s.hull_hp,s.ship_class FROM ship_passenger_requests r JOIN ships s ON s.id=r.ship_id WHERE r.id=? AND r.status='pending' FOR UPDATE");$q->execute([$requestId]);$ride=$q->fetch(PDO::FETCH_ASSOC);
-        if(!$ride||(int)$ride['pilot_id']!==$userId){$pdo->rollBack();mpResponse(['error'=>'Esse pedido nao esta disponivel para sua nave.'],409);}
+        if(!$ride||(int)$ride['pilot_id']!==$userId){$pdo->rollBack();mpResponse(['error'=>'Esse pedido nao está disponivel para sua nave.'],409);}
         if(!$accept){$pdo->prepare("UPDATE ship_passenger_requests SET status='declined' WHERE id=?")->execute([$requestId]);$pdo->commit();mpResponse(['ok'=>true,'accepted'=>false]);}
         $present=$pdo->prepare("SELECT 1 FROM station_occupants WHERE user_id=? AND station_id=? AND mode='station'");$present->execute([$userId,(int)$ride['origin_station_id']]);$pilotPresent=(bool)$present->fetchColumn();$present->execute([(int)$ride['passenger_id'],(int)$ride['origin_station_id']]);$passengerPresent=(bool)$present->fetchColumn();
-        $count=$pdo->prepare("SELECT COUNT(*) FROM ship_passengers WHERE ship_id=? AND status='active'");$count->execute([(int)$ride['ship_id']]);$capacity=(string)$ride['ship_class']==='freighter'?12:((string)$ride['ship_class']==='attack'?2:4);
-        if(!$pilotPresent||!$passengerPresent||!(bool)$ride['is_active']||(int)$ride['hull_hp']<1||(int)$ride['docked_station_id']!==(int)$ride['origin_station_id']||(int)$count->fetchColumn()>=$capacity){$pdo->rollBack();mpResponse(['error'=>'A nave, o piloto, o passageiro ou o assento ja nao esta disponivel.'],409);}
+        $count=$pdo->prepare("SELECT COUNT(*) FROM ship_passengers WHERE ship_id=? AND status='active'");$count->execute([(int)$ride['ship_id']]);$capacity=10;$occupiedSeats=(int)$count->fetchColumn();
+        if(!$pilotPresent||!$passengerPresent||!(bool)$ride['is_active']||(int)$ride['hull_hp']<1||(int)$ride['docked_station_id']!==(int)$ride['origin_station_id']||$occupiedSeats>=$capacity){$pdo->rollBack();mpResponse(['error'=>'A nave, o piloto, o passageiro ou o assento já nao está disponivel.'],409);}
         $pdo->prepare("INSERT INTO ship_passengers(ship_id,passenger_id,origin_station_id,destination_station_id,fare_credits,status) VALUES(?,?,?,?,0,'active')")->execute([(int)$ride['ship_id'],(int)$ride['passenger_id'],(int)$ride['origin_station_id'],(int)$ride['destination_station_id']]);
-        $pdo->prepare("UPDATE station_occupants SET mode='aboard',ship_id=?,room_pos_x=50,room_pos_z=66.5,room_yaw=0 WHERE user_id=? AND station_id=? AND mode='station'")->execute([(int)$ride['ship_id'],(int)$ride['passenger_id'],(int)$ride['origin_station_id']]);
+        $spawnX=$occupiedSeats%2===0?38.0:62.0;$spawnZ=164.0-floor($occupiedSeats/2)*18.0;
+        $pdo->prepare("UPDATE station_occupants SET mode='aboard',ship_id=?,room_pos_x=?,room_pos_z=?,room_yaw=0 WHERE user_id=? AND station_id=? AND mode='station'")->execute([(int)$ride['ship_id'],$spawnX,$spawnZ,(int)$ride['passenger_id'],(int)$ride['origin_station_id']]);
         $pdo->prepare("UPDATE ship_passenger_requests SET status='accepted' WHERE id=?")->execute([$requestId]);$pdo->commit();mpResponse(['ok'=>true,'accepted'=>true,'passenger_id'=>(int)$ride['passenger_id']]);
     }
 
@@ -1104,16 +1209,16 @@ try {
         if($shipId<1||$destinationId<1)mpResponse(['error'=>'Selecione uma nave e um destino.'],400);
         $pdo->beginTransaction();
         $where=$pdo->prepare("SELECT so.station_id,so.mode FROM station_occupants so WHERE so.user_id=? FOR UPDATE");$where->execute([$userId]);$occupant=$where->fetch(PDO::FETCH_ASSOC);
-        if(!$occupant||$occupant['mode']!=='station'){$pdo->rollBack();mpResponse(['error'=>'Voce precisa estar dentro da estacao de embarque.'],409);}
+        if(!$occupant||$occupant['mode']!=='station'){$pdo->rollBack();mpResponse(['error'=>'Voc? precisa estar dentro da estação de embarque.'],409);}
         $shipQuery=$pdo->prepare("SELECT s.id,s.user_id,s.ship_class,s.ship_name,s.docked_station_id,s.hull_hp,ss.pos_x AS origin_x,ss.pos_z AS origin_z,dest.id AS destination_id,dest.name AS destination_name,dest.pos_x AS destination_x,dest.pos_z AS destination_z,u.credits,u.username AS pilot_name,EXISTS(SELECT 1 FROM station_occupants pilot WHERE pilot.user_id=s.user_id AND pilot.station_id=s.docked_station_id AND pilot.mode='station' AND u.last_seen_at>=DATE_SUB(NOW(),INTERVAL 30 SECOND)) AS pilot_present,(SELECT COUNT(*) FROM ship_passengers p WHERE p.ship_id=s.id AND p.status='active') AS passenger_count FROM ships s JOIN space_stations ss ON ss.id=s.docked_station_id AND ss.hull_hp>0 JOIN space_stations dest ON dest.id=? AND dest.is_active=1 AND dest.hull_hp>0 JOIN users u ON u.id=s.user_id WHERE s.id=? AND s.is_active=1 AND s.docked_station_id=? AND s.user_id<>? AND s.hull_hp>0 FOR UPDATE");
         $shipQuery->execute([$destinationId,$shipId,(int)$occupant['station_id'],$userId]);$ship=$shipQuery->fetch(PDO::FETCH_ASSOC);
-        if(!$ship||(int)$ship['destination_id']===(int)$occupant['station_id']||(int)$ship['pilot_present']!==1){$pdo->rollBack();mpResponse(['error'=>'Essa nave nao esta disponivel para embarque. Escolha uma nave ativa com o piloto presente.'],409);}
+        if(!$ship||(int)$ship['destination_id']===(int)$occupant['station_id']||(int)$ship['pilot_present']!==1){$pdo->rollBack();mpResponse(['error'=>'Essa nave nao está disponivel para embarque. Escolha uma nave ativa com o piloto presente.'],409);}
         $crewCheck=$pdo->prepare("SELECT 1 FROM ship_crew WHERE (captain_id=? OR copilot_id=?) AND status IN ('active','pending') LIMIT 1");$crewCheck->execute([$userId,$userId]);
         if($crewCheck->fetchColumn()){$pdo->rollBack();mpResponse(['error'=>'Tripulantes nao podem comprar passagem para outra nave.'],409);}
         $passengerCheck=$pdo->prepare("SELECT 1 FROM ship_passengers WHERE passenger_id=? AND status='active' LIMIT 1");$passengerCheck->execute([$userId]);
-        if($passengerCheck->fetchColumn()){$pdo->rollBack();mpResponse(['error'=>'Voce ja esta em uma viagem como passageiro.'],409);}
-        $seatLimit=(string)$ship['ship_class']==='freighter'?12:((string)$ship['ship_class']==='attack'?2:4);
-        if((int)$ship['passenger_count']>=$seatLimit){$pdo->rollBack();mpResponse(['error'=>'A nave ja ocupou todos os assentos de passageiros.'],409);}
+        if($passengerCheck->fetchColumn()){$pdo->rollBack();mpResponse(['error'=>'Voc? já está em uma viagem como passageiro.'],409);}
+        $seatLimit=10;
+        if((int)$ship['passenger_count']>=$seatLimit){$pdo->rollBack();mpResponse(['error'=>'A nave já ocupou todos os assentos de passageiros.'],409);}
         $distance=hypot((float)$ship['origin_x']-(float)$ship['destination_x'],(float)$ship['origin_z']-(float)$ship['destination_z']);
         $fare=max(100,min(1000000,(int)ceil($distance/1000)*10));
         $wallet=$pdo->prepare('SELECT credits FROM users WHERE id=? FOR UPDATE');$wallet->execute([$userId]);$credits=(int)$wallet->fetchColumn();
@@ -1121,7 +1226,8 @@ try {
         $pdo->prepare("INSERT INTO ship_passengers(ship_id,passenger_id,origin_station_id,destination_station_id,fare_credits,status) VALUES(?,?,?,?,?,'active')")->execute([$shipId,$userId,(int)$occupant['station_id'],$destinationId,$fare]);
         $pdo->prepare('UPDATE users SET credits=credits-? WHERE id=?')->execute([$fare,$userId]);
         $pdo->prepare('UPDATE users SET credits=credits+? WHERE id=?')->execute([$fare,(int)$ship['user_id']]);
-        $pdo->prepare("UPDATE station_occupants SET mode='aboard',ship_id=?,room_pos_x=50,room_pos_z=66.5,room_yaw=0 WHERE user_id=?")->execute([$shipId,$userId]);
+        $occupiedSeats=(int)$ship['passenger_count'];$spawnX=$occupiedSeats%2===0?38.0:62.0;$spawnZ=164.0-floor($occupiedSeats/2)*18.0;
+        $pdo->prepare("UPDATE station_occupants SET mode='aboard',ship_id=?,room_pos_x=?,room_pos_z=?,room_yaw=0 WHERE user_id=?")->execute([$shipId,$spawnX,$spawnZ,$userId]);
         $pdo->commit();
         mpResponse(['ok'=>true,'ship'=>$ship['ship_name'],'pilot'=>$ship['pilot_name'],'destination'=>$ship['destination_name'],'fare'=>$fare,'credits'=>$credits-$fare]);
     }
@@ -1129,21 +1235,31 @@ try {
     if ($action === 'station-room') {
         $q=$pdo->prepare("SELECT so.mode,so.station_id,so.ship_id,ss.code,ss.name,ss.hull_hp,ss.pos_x,ss.pos_z FROM station_occupants so JOIN space_stations ss ON ss.id=so.station_id WHERE so.user_id=? LIMIT 1"); $q->execute([$userId]); $location=$q->fetch(PDO::FETCH_ASSOC);
         if (!$location) mpResponse(['inside'=>false,'pending'=>[]]);
+        if ($location['mode'] === 'station') {
+            $dockedStationQuery=$pdo->prepare('SELECT docked_station_id FROM ships WHERE user_id=? AND is_active=1 AND docked_station_id IS NOT NULL LIMIT 1');
+            $dockedStationQuery->execute([$userId]); $dockedStationId=(int)$dockedStationQuery->fetchColumn();
+            if ($dockedStationId > 0 && $dockedStationId !== (int)$location['station_id']) {
+                $pdo->prepare("UPDATE station_occupants SET station_id=?,mode='station',ship_id=NULL WHERE user_id=? AND mode='station'")->execute([$dockedStationId,$userId]);
+                $q->execute([$userId]); $location=$q->fetch(PDO::FETCH_ASSOC);
+            }
+        }
         $pdo->prepare('UPDATE users SET last_seen_at=NOW() WHERE id=?')->execute([$userId]);
         $q=$pdo->prepare("SELECT so.user_id,u.username,u.avatar_code,so.mode,so.room_pos_x,so.room_pos_z,so.room_yaw,s.ship_name,EXISTS(SELECT 1 FROM ships own_ship WHERE own_ship.user_id=so.user_id AND own_ship.is_active=1 AND own_ship.docked_station_id=so.station_id) AS has_ship FROM station_occupants so JOIN users u ON u.id=so.user_id LEFT JOIN ships s ON s.id=so.ship_id WHERE so.station_id=? AND so.mode='station' AND (u.last_seen_at>=DATE_SUB(NOW(),INTERVAL 30 SECOND) OR so.user_id=?) ORDER BY u.username"); $q->execute([(int)$location['station_id'],$userId]); $occupants=$q->fetchAll(PDO::FETCH_ASSOC);
+        $separateCrowd=static function(array &$people,float $scaleX,float $scaleZ):void{usort($people,static fn($a,$b)=>(int)$a['user_id']<=>(int)$b['user_id']);$placed=[];$offsets=[[4.2,0],[-4.2,0],[0,2.3],[0,-2.3],[4.2,2.3],[-4.2,2.3],[4.2,-2.3],[-4.2,-2.3],[8.4,0],[-8.4,0],[0,4.6],[0,-4.6]];foreach($people as &$person){$x=(float)$person['room_pos_x'];$z=(float)$person['room_pos_z'];$collides=static function(float $cx,float $cz)use($placed,$scaleX,$scaleZ):bool{foreach($placed as $point){if(hypot(($cx-$point[0])*$scaleX,($cz-$point[1])*$scaleZ)<.92)return true;}return false;};if($collides($x,$z)){foreach($offsets as [$dx,$dz]){$nx=max(8,min(92,$x+$dx));$nz=max(27.1,min(220,$z+$dz));if(!$collides($nx,$nz)){$x=$nx;$z=$nz;break;}}}$person['room_pos_x']=$x;$person['room_pos_z']=$z;$placed[]=[$x,$z];}unset($person);};
+        $separateCrowd($occupants,.244,.434);
         $dockedQuery=$pdo->prepare("SELECT s.id,s.ship_name,s.ship_class,s.is_active,s.hull_hp,s.fuel_units,s.fuel_capacity_units,s.energy_units,s.iron_kg,s.nickel_kg,s.cobalt_kg,s.ice_kg,s.cargo_capacity_kg,u.id AS owner_id,u.username,u.avatar_code,EXISTS(SELECT 1 FROM station_occupants pilot WHERE pilot.user_id=u.id AND pilot.station_id=s.docked_station_id AND pilot.mode='station' AND u.last_seen_at>=DATE_SUB(NOW(),INTERVAL 30 SECOND)) AS pilot_present,(SELECT COUNT(*) FROM ship_passengers p WHERE p.ship_id=s.id AND p.status='active') AS passenger_count FROM ships s JOIN users u ON u.id=s.user_id WHERE s.docked_station_id=? AND s.hull_hp>0 ORDER BY s.is_active DESC,s.ship_name"); $dockedQuery->execute([(int)$location['station_id']]); $dockedShips=$dockedQuery->fetchAll(PDO::FETCH_ASSOC);
         $q=$pdo->prepare("SELECT sc.ship_id,sc.captain_id,u.username AS captain_name,s.ship_name,ss.name AS station_name FROM ship_crew sc JOIN users u ON u.id=sc.captain_id JOIN ships s ON s.id=sc.ship_id JOIN space_stations ss ON ss.id=sc.station_id WHERE sc.copilot_id=? AND sc.request_by='captain' AND sc.status='pending'"); $q->execute([$userId]); $pending=$q->fetchAll(PDO::FETCH_ASSOC);
         $q=$pdo->prepare("SELECT sc.ship_id,sc.copilot_id,sc.captain_id,sc.status,sc.request_by,uc.username AS copilot_name,up.username AS captain_name FROM ship_crew sc JOIN users uc ON uc.id=sc.copilot_id JOIN users up ON up.id=sc.captain_id WHERE (sc.captain_id=? OR sc.copilot_id=?) AND sc.status IN ('pending','active')"); $q->execute([$userId,$userId]); $crew=$q->fetchAll(PDO::FETCH_ASSOC);
         $requests=array_values(array_filter($crew,static fn($row)=>$row['status']==='pending' && $row['request_by']==='copilot' && (int)$row['captain_id']===$userId));
         mpEnsurePassengerRequests($pdo);$rideQuery=$pdo->prepare("SELECT r.id,r.ship_id,r.passenger_id,u.username AS passenger_name,dest.name AS destination_name FROM ship_passenger_requests r JOIN ships s ON s.id=r.ship_id JOIN users u ON u.id=r.passenger_id JOIN space_stations dest ON dest.id=r.destination_station_id WHERE s.user_id=? AND s.docked_station_id=? AND r.status='pending' AND u.last_seen_at>=DATE_SUB(NOW(),INTERVAL 30 SECOND) ORDER BY r.created_at");$rideQuery->execute([$userId,(int)$location['station_id']]);$rideRequests=$rideQuery->fetchAll(PDO::FETCH_ASSOC);
-        $passengerQuery=$pdo->prepare("SELECT p.ship_id,p.fare_credits,p.origin_station_id,p.destination_station_id,s.ship_name,s.docked_station_id,origin.name AS origin_name,dest.name AS destination_name,pilot.username AS pilot_name,pilot.avatar_code AS pilot_avatar,copilot.username AS copilot_name,copilot.avatar_code AS copilot_avatar FROM ship_passengers p JOIN ships s ON s.id=p.ship_id JOIN space_stations origin ON origin.id=p.origin_station_id JOIN space_stations dest ON dest.id=p.destination_station_id JOIN users pilot ON pilot.id=s.user_id LEFT JOIN ship_crew sc ON sc.ship_id=s.id AND sc.status='active' LEFT JOIN users copilot ON copilot.id=sc.copilot_id WHERE p.passenger_id=? AND p.status='active' LIMIT 1");$passengerQuery->execute([$userId]);$passenger=$passengerQuery->fetch(PDO::FETCH_ASSOC);
-         $passengerOccupants=[]; if($passenger){$shipCrewQuery=$pdo->prepare("SELECT members.user_id,members.username,members.avatar_code,members.mode,members.room_pos_x,members.room_pos_z,members.room_yaw FROM (SELECT u.id AS user_id,u.username,u.avatar_code,'pilot' AS mode,50.0 AS room_pos_x,30.0 AS room_pos_z,0.0 AS room_yaw,s.id AS ship_id FROM ships s JOIN users u ON u.id=s.user_id UNION ALL SELECT u.id,u.username,u.avatar_code,'copilot',50.0,34.0,0.0,sc.ship_id FROM ship_crew sc JOIN users u ON u.id=sc.copilot_id WHERE sc.status='active' UNION ALL SELECT so.user_id,u.username,u.avatar_code,'passenger',so.room_pos_x,so.room_pos_z,so.room_yaw,so.ship_id FROM station_occupants so JOIN users u ON u.id=so.user_id WHERE so.mode='aboard' AND NOT EXISTS(SELECT 1 FROM ship_crew crew_member WHERE crew_member.ship_id=so.ship_id AND crew_member.copilot_id=so.user_id AND crew_member.status='active')) members WHERE members.ship_id=? AND (members.user_id=? OR EXISTS(SELECT 1 FROM users active_user WHERE active_user.id=members.user_id AND active_user.last_seen_at>=DATE_SUB(NOW(),INTERVAL 30 SECOND))) ORDER BY members.user_id");$shipCrewQuery->execute([(int)$passenger['ship_id'],$userId]);$passengerOccupants=$shipCrewQuery->fetchAll(PDO::FETCH_ASSOC);}
+        $passengerQuery=$pdo->prepare("SELECT p.ship_id,p.fare_credits,p.origin_station_id,p.destination_station_id,s.ship_name,s.docked_station_id,s.iron_kg,s.nickel_kg,s.cobalt_kg,s.ice_kg,s.fuel_units,s.fuel_capacity_units,s.cargo_capacity_kg,origin.name AS origin_name,dest.name AS destination_name,pilot.id AS pilot_id,pilot.username AS pilot_name,pilot.avatar_code AS pilot_avatar,copilot.id AS copilot_id,copilot.username AS copilot_name,copilot.avatar_code AS copilot_avatar FROM ship_passengers p JOIN ships s ON s.id=p.ship_id JOIN space_stations origin ON origin.id=p.origin_station_id JOIN space_stations dest ON dest.id=p.destination_station_id JOIN users pilot ON pilot.id=s.user_id LEFT JOIN ship_crew sc ON sc.ship_id=s.id AND sc.status='active' LEFT JOIN users copilot ON copilot.id=sc.copilot_id WHERE p.passenger_id=? AND p.status='active' LIMIT 1");$passengerQuery->execute([$userId]);$passenger=$passengerQuery->fetch(PDO::FETCH_ASSOC);
+          $passengerOccupants=[]; if($passenger){$shipCrewQuery=$pdo->prepare("SELECT members.user_id,members.username,members.avatar_code,members.mode,members.room_pos_x,members.room_pos_z,members.room_yaw FROM (SELECT u.id AS user_id,u.username,u.avatar_code,'pilot' AS mode,50.0 AS room_pos_x,30.0 AS room_pos_z,0.0 AS room_yaw,s.id AS ship_id FROM ships s JOIN users u ON u.id=s.user_id UNION ALL SELECT u.id,u.username,u.avatar_code,'copilot',50.0,34.0,0.0,sc.ship_id FROM ship_crew sc JOIN users u ON u.id=sc.copilot_id WHERE sc.status='active' UNION ALL SELECT so.user_id,u.username,u.avatar_code,'passenger',so.room_pos_x,so.room_pos_z,so.room_yaw,so.ship_id FROM station_occupants so JOIN users u ON u.id=so.user_id WHERE so.mode='aboard' AND NOT EXISTS(SELECT 1 FROM ship_crew crew_member WHERE crew_member.ship_id=so.ship_id AND crew_member.copilot_id=so.user_id AND crew_member.status='active')) members WHERE members.ship_id=? AND (members.user_id=? OR EXISTS(SELECT 1 FROM users active_user WHERE active_user.id=members.user_id AND active_user.last_seen_at>=DATE_SUB(NOW(),INTERVAL 30 SECOND))) ORDER BY members.user_id");$shipCrewQuery->execute([(int)$passenger['ship_id'],$userId]);$passengerOccupants=$shipCrewQuery->fetchAll(PDO::FETCH_ASSOC);$separateCrowd($passengerOccupants,.089,.055);}
         $role=$passenger?'passenger':($location['mode']==='aboard'?'copilot':'pilot');
         if($passenger){$location['ship_id']=$passenger['ship_id'];}
         $manifestQuery=$pdo->prepare("SELECT p.passenger_id,u.username,p.fare_credits,dest.name AS destination_name FROM ship_passengers p JOIN users u ON u.id=p.passenger_id JOIN space_stations dest ON dest.id=p.destination_station_id WHERE p.ship_id=? AND p.status='active' ORDER BY p.boarded_at");$manifestShip=(int)($location['ship_id']??0);if(!$manifestShip){$ownShip=$pdo->prepare('SELECT id FROM ships WHERE user_id=? AND is_active=1 AND docked_station_id=? LIMIT 1');$ownShip->execute([$userId,(int)$location['station_id']]);$manifestShip=(int)$ownShip->fetchColumn();}$manifestQuery->execute([$manifestShip]);$passengerManifest=$manifestQuery->fetchAll(PDO::FETCH_ASSOC);
         $stationQuery=$pdo->prepare('SELECT id,name,code,pos_x,pos_z FROM space_stations WHERE is_active=1 AND hull_hp>0 ORDER BY name');$stationQuery->execute();$stationList=$stationQuery->fetchAll(PDO::FETCH_ASSOC);
-        $canUndockQuery=$pdo->prepare('SELECT 1 FROM ships WHERE user_id=? AND is_active=1 AND docked_station_id=? LIMIT 1');$canUndockQuery->execute([$userId,(int)$location['station_id']]);$canUndock=(bool)$canUndockQuery->fetchColumn();$myShipQuery=$pdo->prepare('SELECT ship_name,ship_class,fuel_units,fuel_capacity_units,energy_units,iron_kg,nickel_kg,cobalt_kg,ice_kg,cargo_capacity_kg,hull_hp FROM ships WHERE user_id=? AND docked_station_id=? AND is_active=1 LIMIT 1');$myShipQuery->execute([$userId,(int)$location['station_id']]);$myShip=$myShipQuery->fetch(PDO::FETCH_ASSOC)?:null;
-        mpResponse(['inside'=>true,'selfId'=>$userId,'mode'=>$location['mode'],'role'=>$role,'canUndock'=>$canUndock,'passenger'=>$passenger?['ship'=>(string)$passenger['ship_name'],'pilot'=>(string)$passenger['pilot_name'],'pilotAvatar'=>(string)$passenger['pilot_avatar'],'copilot'=>(string)($passenger['copilot_name']??''),'copilotAvatar'=>(string)($passenger['copilot_avatar']??''),'origin'=>(string)$passenger['origin_name'],'destination'=>(string)$passenger['destination_name'],'fare'=>(int)$passenger['fare_credits'],'shipId'=>(int)$passenger['ship_id'],'canDisembark'=>$passenger['docked_station_id']!==null,'dockedStationId'=>$passenger['docked_station_id']===null?null:(int)$passenger['docked_station_id'],'occupants'=>array_map(static fn($r)=>['id'=>(int)$r['user_id'],'name'=>$r['username'],'avatar'=>(string)$r['avatar_code'],'mode'=>'aboard','roomX'=>(float)$r['room_pos_x'],'roomZ'=>(float)$r['room_pos_z'],'roomYaw'=>(float)$r['room_yaw']],$passengerOccupants)]:null,'station'=>['id'=>(int)$location['station_id'],'code'=>$location['code'],'name'=>$location['name'],'hull'=>(int)$location['hull_hp'],'x'=>(float)$location['pos_x'],'z'=>(float)$location['pos_z']],'stations'=>array_map(static fn($r)=>['id'=>(int)$r['id'],'name'=>$r['name'],'code'=>$r['code'],'x'=>(float)$r['pos_x'],'z'=>(float)$r['pos_z']],$stationList),'occupants'=>array_map(static fn($r)=>['id'=>(int)$r['user_id'],'name'=>$r['username'],'avatar'=>(string)$r['avatar_code'],'mode'=>$r['mode'],'ship'=>$r['ship_name'],'hasShip'=>(bool)$r['has_ship'],'roomX'=>(float)$r['room_pos_x'],'roomZ'=>(float)$r['room_pos_z'],'roomYaw'=>(float)$r['room_yaw'],'roomCode'=>(float)$r['room_pos_z']<109?'observatory':((float)$r['room_pos_z']<143?'corridor':'habitat')],$occupants),'myShip'=>$myShip?['name'=>$myShip['ship_name'],'class'=>$myShip['ship_class'],'fuel'=>(float)$myShip['fuel_units'],'fuelCapacity'=>(int)$myShip['fuel_capacity_units'],'energy'=>(int)$myShip['energy_units'],'iron'=>(int)$myShip['iron_kg'],'nickel'=>(int)$myShip['nickel_kg'],'cobalt'=>(int)$myShip['cobalt_kg'],'ice'=>(int)$myShip['ice_kg'],'cargoCapacity'=>(int)$myShip['cargo_capacity_kg'],'hull'=>(int)$myShip['hull_hp']]:null,'ships'=>array_map(static fn($r)=>['id'=>(int)$r['id'],'name'=>$r['ship_name'],'class'=>$r['ship_class'],'active'=>(bool)$r['is_active'],'hull'=>(int)$r['hull_hp'],'fuel'=>(float)$r['fuel_units'],'fuelCapacity'=>(int)$r['fuel_capacity_units'],'energy'=>(int)$r['energy_units'],'iron'=>(int)$r['iron_kg'],'nickel'=>(int)$r['nickel_kg'],'cobalt'=>(int)$r['cobalt_kg'],'ice'=>(int)$r['ice_kg'],'cargoCapacity'=>(int)$r['cargo_capacity_kg'],'ownerId'=>(int)$r['owner_id'],'owner'=>$r['username'],'avatar'=>(string)$r['avatar_code'],'pilotPresent'=>(bool)$r['pilot_present'],'passengers'=>(int)$r['passenger_count'],'passengerCapacity'=>((string)$r['ship_class']==='freighter'?12:((string)$r['ship_class']==='attack'?2:4))],$dockedShips),'passengerManifest'=>array_map(static fn($r)=>['id'=>(int)$r['passenger_id'],'name'=>$r['username'],'fare'=>(int)$r['fare_credits'],'destination'=>$r['destination_name']],$passengerManifest),'pending'=>$pending,'requests'=>$requests,'rideRequests'=>array_map(static fn($r)=>['id'=>(int)$r['id'],'shipId'=>(int)$r['ship_id'],'passengerId'=>(int)$r['passenger_id'],'passengerName'=>$r['passenger_name'],'destination'=>$r['destination_name']],$rideRequests),'crew'=>$crew]);
+        $canUndockQuery=$pdo->prepare("SELECT 1 FROM ships WHERE user_id=? AND is_active=1 AND docked_station_id=? AND ?='station' LIMIT 1");$canUndockQuery->execute([$userId,(int)$location['station_id'],$location['mode']]);$canUndock=(bool)$canUndockQuery->fetchColumn();$myShipQuery=$pdo->prepare('SELECT ship_name,ship_class,fuel_units,fuel_capacity_units,energy_units,iron_kg,nickel_kg,cobalt_kg,ice_kg,cargo_capacity_kg,hull_hp FROM ships WHERE user_id=? AND docked_station_id=? AND is_active=1 LIMIT 1');$myShipQuery->execute([$userId,(int)$location['station_id']]);$myShip=$myShipQuery->fetch(PDO::FETCH_ASSOC)?:null;
+        mpResponse(['inside'=>true,'selfId'=>$userId,'mode'=>$location['mode'],'role'=>$role,'canUndock'=>$canUndock,'passenger'=>$passenger?['ship'=>(string)$passenger['ship_name'],'pilot'=>(string)$passenger['pilot_name'],'pilotId'=>(int)$passenger['pilot_id'],'pilotAvatar'=>(string)$passenger['pilot_avatar'],'copilot'=>(string)($passenger['copilot_name']??''),'copilotId'=>(int)($passenger['copilot_id']??0),'copilotAvatar'=>(string)($passenger['copilot_avatar']??''),'origin'=>(string)$passenger['origin_name'],'destination'=>(string)$passenger['destination_name'],'fare'=>(int)$passenger['fare_credits'],'shipId'=>(int)$passenger['ship_id'],'capacity'=>10,'fuel'=>(float)$passenger['fuel_units'],'fuelCapacity'=>(int)$passenger['fuel_capacity_units'],'cargoCapacity'=>(int)$passenger['cargo_capacity_kg'],'cargoWeightKg'=>(int)$passenger['iron_kg']+(int)$passenger['nickel_kg']+(int)$passenger['cobalt_kg']+(int)$passenger['ice_kg']+(float)$passenger['fuel_units']*0.5,'cargo'=>['iron'=>(int)$passenger['iron_kg'],'nickel'=>(int)$passenger['nickel_kg'],'cobalt'=>(int)$passenger['cobalt_kg'],'ice'=>(int)$passenger['ice_kg'],'fuelWeightKg'=>(float)$passenger['fuel_units']*0.5],'canDisembark'=>$passenger['docked_station_id']!==null,'dockedStationId'=>$passenger['docked_station_id']===null?null:(int)$passenger['docked_station_id'],'occupants'=>array_map(static fn($r)=>['id'=>(int)$r['user_id'],'name'=>$r['username'],'avatar'=>(string)$r['avatar_code'],'mode'=>(string)$r['mode'],'roomX'=>(float)$r['room_pos_x'],'roomZ'=>(float)$r['room_pos_z'],'roomYaw'=>(float)$r['room_yaw']],$passengerOccupants)]:null,'station'=>['id'=>(int)$location['station_id'],'code'=>$location['code'],'name'=>$location['name'],'hull'=>(int)$location['hull_hp'],'x'=>(float)$location['pos_x'],'z'=>(float)$location['pos_z']],'stations'=>array_map(static fn($r)=>['id'=>(int)$r['id'],'name'=>$r['name'],'code'=>$r['code'],'x'=>(float)$r['pos_x'],'z'=>(float)$r['pos_z']],$stationList),'occupants'=>array_map(static fn($r)=>['id'=>(int)$r['user_id'],'name'=>$r['username'],'avatar'=>(string)$r['avatar_code'],'mode'=>$r['mode'],'ship'=>$r['ship_name'],'hasShip'=>(bool)$r['has_ship'],'roomX'=>(float)$r['room_pos_x'],'roomZ'=>(float)$r['room_pos_z'],'roomYaw'=>(float)$r['room_yaw'],'roomCode'=>(float)$r['room_pos_z']<109?'observatory':((float)$r['room_pos_z']<143?'corridor':'habitat')],$occupants),'myShip'=>$myShip?['name'=>$myShip['ship_name'],'class'=>$myShip['ship_class'],'fuel'=>(float)$myShip['fuel_units'],'fuelCapacity'=>(int)$myShip['fuel_capacity_units'],'energy'=>(int)$myShip['energy_units'],'iron'=>(int)$myShip['iron_kg'],'nickel'=>(int)$myShip['nickel_kg'],'cobalt'=>(int)$myShip['cobalt_kg'],'ice'=>(int)$myShip['ice_kg'],'cargoCapacity'=>(int)$myShip['cargo_capacity_kg'],'hull'=>(int)$myShip['hull_hp']]:null,'ships'=>array_map(static fn($r)=>['id'=>(int)$r['id'],'name'=>$r['ship_name'],'class'=>$r['ship_class'],'active'=>(bool)$r['is_active'],'hull'=>(int)$r['hull_hp'],'fuel'=>(float)$r['fuel_units'],'fuelCapacity'=>(int)$r['fuel_capacity_units'],'energy'=>(int)$r['energy_units'],'iron'=>(int)$r['iron_kg'],'nickel'=>(int)$r['nickel_kg'],'cobalt'=>(int)$r['cobalt_kg'],'ice'=>(int)$r['ice_kg'],'cargoCapacity'=>(int)$r['cargo_capacity_kg'],'ownerId'=>(int)$r['owner_id'],'owner'=>$r['username'],'avatar'=>(string)$r['avatar_code'],'pilotPresent'=>(bool)$r['pilot_present'],'passengers'=>(int)$r['passenger_count'],'passengerCapacity'=>10],$dockedShips),'passengerManifest'=>array_map(static fn($r)=>['id'=>(int)$r['passenger_id'],'name'=>$r['username'],'fare'=>(int)$r['fare_credits'],'destination'=>$r['destination_name']],$passengerManifest),'pending'=>$pending,'requests'=>$requests,'rideRequests'=>array_map(static fn($r)=>['id'=>(int)$r['id'],'shipId'=>(int)$r['ship_id'],'passengerId'=>(int)$r['passenger_id'],'passengerName'=>$r['passenger_name'],'destination'=>$r['destination_name']],$rideRequests),'crew'=>$crew]);
     }
 
     if ($action === 'passenger-disembark') {
@@ -1151,11 +1267,11 @@ try {
         $pdo->beginTransaction();
         $query=$pdo->prepare("SELECT p.ship_id,p.destination_station_id,s.docked_station_id FROM ship_passengers p JOIN ships s ON s.id=p.ship_id WHERE p.passenger_id=? AND p.status='active' LIMIT 1 FOR UPDATE");
         $query->execute([$userId]);$passenger=$query->fetch(PDO::FETCH_ASSOC);
-        if(!$passenger){$pdo->rollBack();mpResponse(['error'=>'Voce nao esta a bordo de uma nave.'],409);}
-        if($passenger['docked_station_id']===null){$pdo->rollBack();mpResponse(['error'=>'Voce so pode desembarcar quando a nave estiver acoplada a uma estacao.'],409);}
+        if(!$passenger){$pdo->rollBack();mpResponse(['error'=>'Voc? nao está a bordo de uma nave.'],409);}
+        if($passenger['docked_station_id']===null){$pdo->rollBack();mpResponse(['error'=>'Voc? so pode desembarcar quando a nave estiver acoplada a uma estação.'],409);}
         $stationId=(int)$passenger['docked_station_id'];
         $stationQuery=$pdo->prepare('SELECT name FROM space_stations WHERE id=? AND is_active=1 AND hull_hp>0 LIMIT 1');$stationQuery->execute([$stationId]);$stationName=$stationQuery->fetchColumn();
-        if(!$stationName){$pdo->rollBack();mpResponse(['error'=>'A estacao nao esta disponivel para desembarque.'],409);}
+        if(!$stationName){$pdo->rollBack();mpResponse(['error'=>'A estação nao está disponivel para desembarque.'],409);}
         $completed=(int)$passenger['destination_station_id']===$stationId;
         $pdo->prepare("UPDATE ship_passengers SET status=?,arrived_at=CASE WHEN ?=1 THEN NOW() ELSE arrived_at END WHERE passenger_id=? AND status='active'")->execute([$completed?'completed':'cancelled',$completed?1:0,$userId]);
         $pdo->prepare("UPDATE station_occupants SET mode='station',ship_id=NULL,station_id=?,room_pos_x=50,room_pos_z=75 WHERE user_id=?")->execute([$stationId,$userId]);
@@ -1167,9 +1283,21 @@ try {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error'=>'Use POST.'],405);
         $input=mpInput(); $x=$input['x']??null; $z=$input['z']??null; $yaw=$input['yaw']??0;
         if (!is_numeric($x)||!is_numeric($z)||!is_numeric($yaw)||!is_finite((float)$x)||!is_finite((float)$z)||!is_finite((float)$yaw)) mpResponse(['error'=>'Posicao ou orientacao do avatar invalida.'],400);
-        $occupant=$pdo->prepare('SELECT station_id,ship_id,mode FROM station_occupants WHERE user_id=? LIMIT 1'); $occupant->execute([$userId]);
-        $where=$occupant->fetch(PDO::FETCH_ASSOC); if (!$where || ($action==='station-walk' && $where['mode']!=='station') || ($action==='passenger-walk' && $where['mode']!=='aboard')) mpResponse(['error'=>'Voce nao esta na sala correta para mover o avatar.'],409); if($action==='passenger-walk'){$passengerAccess=$pdo->prepare("SELECT 1 FROM ship_passengers WHERE passenger_id=? AND ship_id=? AND status='active' LIMIT 1");$passengerAccess->execute([$userId,(int)$where['ship_id']]);if(!$passengerAccess->fetchColumn())mpResponse(['error'=>'Somente passageiros ativos podem andar no compartimento.'],403);}
-        $pdo->prepare('UPDATE station_occupants SET room_pos_x=?,room_pos_z=?,room_yaw=? WHERE user_id=?')->execute([max(8,min(92,(float)$x)),max(27.1,min(220,(float)$z)),(float)$yaw,$userId]);
+        $occupant=$pdo->prepare('SELECT station_id,ship_id,mode,room_pos_x,room_pos_z FROM station_occupants WHERE user_id=? LIMIT 1'); $occupant->execute([$userId]);
+        $where=$occupant->fetch(PDO::FETCH_ASSOC); if (!$where || ($action==='station-walk' && $where['mode']!=='station') || ($action==='passenger-walk' && $where['mode']!=='aboard')) mpResponse(['error'=>'Voc? nao está na sala correta para mover o avatar.'],409); if($action==='passenger-walk'){$passengerAccess=$pdo->prepare("SELECT 1 FROM ship_passengers WHERE passenger_id=? AND ship_id=? AND status='active' LIMIT 1");$passengerAccess->execute([$userId,(int)$where['ship_id']]);if(!$passengerAccess->fetchColumn())mpResponse(['error'=>'Somente passageiros ativos podem andar no compartimento.'],403);}
+        $minZ=27.1;$maxZ=220.0;$nextX=max(8,min(92,(float)$x));$nextZ=max($minZ,min($maxZ,(float)$z));
+        $pdo->beginTransaction();
+        if($action==='passenger-walk'){
+            $others=$pdo->prepare("SELECT user_id,room_pos_x,room_pos_z FROM station_occupants WHERE ship_id=? AND mode='aboard' ORDER BY user_id FOR UPDATE");$others->execute([(int)$where['ship_id']]);
+            $scaleX=.089;$scaleZ=.055;$centerX=50;$centerZ=123.55;$error='Outro passageiro ocupa esse espaco.';
+        }else{
+            $others=$pdo->prepare("SELECT user_id,room_pos_x,room_pos_z FROM station_occupants WHERE station_id=? AND mode='station' ORDER BY user_id FOR UPDATE");$others->execute([(int)$where['station_id']]);
+            $scaleX=.244;$scaleZ=.434;$centerX=50;$centerZ=66.5;$error='Outro jogador ocupa esse espaco.';
+        }
+        $targetX=($nextX-$centerX)*$scaleX;$targetZ=($nextZ-$centerZ)*$scaleZ;
+        $startX=((float)$where['room_pos_x']-$centerX)*$scaleX;$startZ=((float)$where['room_pos_z']-$centerZ)*$scaleZ;
+        foreach($others->fetchAll(PDO::FETCH_ASSOC) as $other){if((int)$other['user_id']===$userId)continue;$otherX=((float)$other['room_pos_x']-$centerX)*$scaleX;$otherZ=((float)$other['room_pos_z']-$centerZ)*$scaleZ;$distance=hypot($targetX-$otherX,$targetZ-$otherZ);$startDistance=hypot($startX-$otherX,$startZ-$otherZ);if($distance<.92&&($startDistance>=.92||$distance<$startDistance-.002)){$pdo->rollBack();mpResponse(['error'=>$error],409);}}
+        $pdo->prepare('UPDATE station_occupants SET room_pos_x=?,room_pos_z=?,room_yaw=? WHERE user_id=?')->execute([$nextX,$nextZ,(float)$yaw,$userId]);$pdo->commit();
         mpResponse(['ok'=>true]);
     }
 
@@ -1196,7 +1324,7 @@ try {
         $input=mpInput();$tradeId=(int)($_GET['trade_id']??$input['trade_id']??0);if($tradeId<1)mpResponse(['error'=>'Troca invalida.'],400);
         $pdo->beginTransaction();
         $tradeQuery=$pdo->prepare('SELECT * FROM station_trades WHERE id=? FOR UPDATE');$tradeQuery->execute([$tradeId]);$trade=$tradeQuery->fetch(PDO::FETCH_ASSOC);
-        if(!$trade||!in_array($userId,[(int)$trade['player_a_id'],(int)$trade['player_b_id']],true)){$pdo->rollBack();mpResponse(['error'=>'Troca nao encontrada para esta conta.'],404);}
+        if(!$trade||!in_array($userId,[(int)$trade['player_a_id'],(int)$trade['player_b_id']],true)){$pdo->rollBack();mpResponse(['error'=>'Troca nao encontrada para está conta.'],404);}
         $isA=(int)$trade['player_a_id']===$userId;$ownOffer=$isA?'offer_a':'offer_b';$ownLock=$isA?'locked_a':'locked_b';$otherLock=$isA?'locked_b':'locked_a';
         $balanceQuery=$pdo->prepare('SELECT u.credits,s.iron_kg,s.nickel_kg,s.cobalt_kg FROM users u LEFT JOIN ships s ON s.user_id=u.id AND s.is_active=1 AND s.docked_station_id=? WHERE u.id=? LIMIT 1');$balanceQuery->execute([(int)$trade['station_id'],$userId]);$balance=$balanceQuery->fetch(PDO::FETCH_ASSOC)?:[];$available=['credits'=>(int)($balance['credits']??0),'iron'=>(int)($balance['iron_kg']??0),'nickel'=>(int)($balance['nickel_kg']??0),'cobalt'=>(int)($balance['cobalt_kg']??0)];
         if($trade['status']==='open'&&in_array($action,['station-trade-update','station-trade-lock'],true)){$presentQuery=$pdo->prepare("SELECT so.user_id FROM station_occupants so JOIN users u ON u.id=so.user_id WHERE so.user_id IN (?,?) AND so.station_id=? AND so.mode='station' AND u.is_active=1 AND u.last_seen_at>=DATE_SUB(NOW(),INTERVAL 20 SECOND)");$presentQuery->execute([(int)$trade['player_a_id'],(int)$trade['player_b_id'],(int)$trade['station_id']]);if(count($presentQuery->fetchAll(PDO::FETCH_COLUMN))!==2){$pdo->rollBack();mpResponse(['error'=>'As ofertas só podem ser editadas ou travadas com os dois jogadores dentro da mesma estação.'],409);}}
@@ -1214,7 +1342,7 @@ try {
                 if(count($present)!==2||(int)$present[0]['station_id']!==(int)$trade['station_id']||(int)$present[1]['station_id']!==(int)$trade['station_id']){$pdo->rollBack();mpResponse(['error'=>'Ambos precisam continuar dentro desta estação para concluir a troca.'],409);}
                 $offerA=json_decode($trade['offer_a'],true)?:[];$offerB=json_decode($trade['offer_b'],true)?:[];$wallets=[];$ships=[];
                 if(array_sum($offerA)+array_sum($offerB)<1){$pdo->rollBack();mpResponse(['error'=>'Incluam ao menos um credito ou mineral antes de travar a troca.'],409);}
-                foreach([(int)$trade['player_a_id'],(int)$trade['player_b_id']] as $participant){$w=$pdo->prepare('SELECT credits FROM users WHERE id=? FOR UPDATE');$w->execute([$participant]);$wallets[$participant]=(int)$w->fetchColumn();$s=$pdo->prepare('SELECT id,cargo_capacity_kg,fuel_units,iron_kg,nickel_kg,cobalt_kg FROM ships WHERE user_id=? AND is_active=1 AND docked_station_id=? AND hull_hp>0 LIMIT 1 FOR UPDATE');$s->execute([$participant,(int)$trade['station_id']]);$ships[$participant]=$s->fetch(PDO::FETCH_ASSOC);if(!$ships[$participant]){$pdo->rollBack();mpResponse(['error'=>'Cada piloto precisa manter uma nave operacional nesta estação.'],409);}}
+                foreach([(int)$trade['player_a_id'],(int)$trade['player_b_id']] as $participant){$w=$pdo->prepare('SELECT credits FROM users WHERE id=? FOR UPDATE');$w->execute([$participant]);$wallets[$participant]=(int)$w->fetchColumn();$s=$pdo->prepare('SELECT id,cargo_capacity_kg,fuel_units,iron_kg,nickel_kg,cobalt_kg FROM ships WHERE user_id=? AND is_active=1 AND docked_station_id=? AND hull_hp>0 LIMIT 1 FOR UPDATE');$s->execute([$participant,(int)$trade['station_id']]);$ships[$participant]=$s->fetch(PDO::FETCH_ASSOC);if(!$ships[$participant]){$pdo->rollBack();mpResponse(['error'=>'Cada piloto precisa manter uma nave operacional nestá estação.'],409);}}
                 $mineralKeys=['iron'=>'iron_kg','nickel'=>'nickel_kg','cobalt'=>'cobalt_kg'];$shipA=$ships[(int)$trade['player_a_id']];$shipB=$ships[(int)$trade['player_b_id']];
                 foreach([[(int)$trade['player_a_id'],$shipA,$offerA,$offerB],[(int)$trade['player_b_id'],$shipB,$offerB,$offerA]] as [$participant,$ship,$offered,$received]){
                     if($wallets[$participant]<(int)($offered['credits']??0)){$pdo->rollBack();mpResponse(['error'=>'Um piloto nao tem os creditos oferecidos.'],409);}
@@ -1235,11 +1363,11 @@ try {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error'=>'Use POST.'],405);
         $captainId=(int)(mpInput()['user_id']??0);
         $own=$pdo->prepare("SELECT s.id,s.docked_station_id FROM ships s JOIN station_occupants so ON so.user_id=s.user_id AND so.station_id=s.docked_station_id AND so.mode='station' WHERE s.user_id=? AND s.is_active=1 AND s.docked_station_id IS NOT NULL LIMIT 1"); $own->execute([$userId]); $ownShip=$own->fetch(PDO::FETCH_ASSOC);
-        if (!$ownShip || $captainId<1 || $captainId===$userId) mpResponse(['error'=>'Guarde sua nave e entre no interior da estacao primeiro.'],409);
+        if (!$ownShip || $captainId<1 || $captainId===$userId) mpResponse(['error'=>'Guarde sua nave e entre no interior da estação primeiro.'],409);
         $host=$pdo->prepare("SELECT s.id FROM ships s JOIN station_occupants so ON so.user_id=s.user_id AND so.station_id=s.docked_station_id AND so.mode='station' WHERE s.user_id=? AND s.is_active=1 AND s.docked_station_id=? LIMIT 1"); $host->execute([$captainId,(int)$ownShip['docked_station_id']]); $hostShip=(int)$host->fetchColumn();
-        if (!$hostShip) mpResponse(['error'=>'O piloto nao tem nave guardada nesta estacao.'],409);
+        if (!$hostShip) mpResponse(['error'=>'O piloto nao tem nave guardada nestá estação.'],409);
         $busy=$pdo->prepare("SELECT 1 FROM ship_crew WHERE (ship_id=? AND status IN ('pending','active')) OR (copilot_id=? AND status IN ('pending','active')) LIMIT 1"); $busy->execute([$hostShip,$userId]);
-        if ($busy->fetchColumn()) mpResponse(['error'=>'A vaga da nave ou voce ja esta ocupado.'],409);
+        if ($busy->fetchColumn()) mpResponse(['error'=>'A vaga da nave ou voc? já está ocupado.'],409);
         $pdo->prepare("INSERT INTO ship_crew(ship_id,captain_id,copilot_id,station_id,status,request_by) VALUES(?,?,?,?,'pending','copilot')")->execute([$hostShip,$captainId,$userId,(int)$ownShip['docked_station_id']]);
         mpResponse(['ok'=>true]);
     }
@@ -1248,11 +1376,11 @@ try {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error'=>'Use POST.'],405);
         $targetId=(int)(mpInput()['user_id']??0);
         $captain=$pdo->prepare("SELECT s.id,s.docked_station_id FROM ships s JOIN station_occupants so ON so.user_id=s.user_id AND so.station_id=s.docked_station_id AND so.mode='station' WHERE s.user_id=? AND s.is_active=1 AND s.docked_station_id IS NOT NULL LIMIT 1"); $captain->execute([$userId]); $ship=$captain->fetch(PDO::FETCH_ASSOC);
-        if (!$ship || $targetId<1 || $targetId===$userId) mpResponse(['error'=>'Acople sua nave e esteja no interior da mesma estacao.'],409);
+        if (!$ship || $targetId<1 || $targetId===$userId) mpResponse(['error'=>'Acople sua nave e estejá no interior da mesma estação.'],409);
         $target=$pdo->prepare("SELECT 1 FROM station_occupants so JOIN users u ON u.id=so.user_id JOIN ships parked ON parked.user_id=so.user_id AND parked.is_active=1 AND parked.docked_station_id=so.station_id WHERE so.user_id=? AND so.station_id=? AND so.mode='station' AND u.last_seen_at>=DATE_SUB(NOW(),INTERVAL 20 SECOND)"); $target->execute([$targetId,(int)$ship['docked_station_id']]);
-        if (!$target->fetchColumn()) mpResponse(['error'=>'O piloto precisa estar nesta estacao e com a nave guardada.'],409);
+        if (!$target->fetchColumn()) mpResponse(['error'=>'O piloto precisa estar nestá estação e com a nave guardada.'],409);
         $busy=$pdo->prepare("SELECT 1 FROM ship_crew WHERE (ship_id=? AND status IN ('pending','active')) OR (copilot_id=? AND status IN ('pending','active')) OR (copilot_id=? AND status IN ('pending','active')) LIMIT 1"); $busy->execute([(int)$ship['id'],$targetId,$userId]);
-        if ($busy->fetchColumn()) mpResponse(['error'=>'A nave ou piloto ja tem um convite ou copiloto.'],409);
+        if ($busy->fetchColumn()) mpResponse(['error'=>'A nave ou piloto já tem um convite ou copiloto.'],409);
         $pdo->prepare("INSERT INTO ship_crew(ship_id,captain_id,copilot_id,station_id,status) VALUES(?,?,?,?,'pending')")->execute([(int)$ship['id'],$userId,$targetId,(int)$ship['docked_station_id']]);
         mpResponse(['ok'=>true]);
     }
@@ -1261,11 +1389,11 @@ try {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error'=>'Use POST.'],405);
         $input=mpInput(); $shipId=(int)($input['ship_id']??0); $accept=!empty($input['accept']);
         $q=$pdo->prepare("SELECT sc.station_id,sc.captain_id,sc.copilot_id,sc.request_by FROM ship_crew sc JOIN station_occupants so ON so.user_id=IF(sc.request_by='captain',sc.copilot_id,sc.captain_id) AND so.station_id=sc.station_id AND so.mode='station' WHERE sc.ship_id=? AND sc.status='pending' AND ((sc.copilot_id=? AND sc.request_by='captain') OR (sc.captain_id=? AND sc.request_by='copilot'))"); $q->execute([$shipId,$userId,$userId]); $invitation=$q->fetch(PDO::FETCH_ASSOC);
-        if (!$invitation) mpResponse(['error'=>'Convite expirado ou voce nao esta nesta estacao.'],404);
+        if (!$invitation) mpResponse(['error'=>'Convite expirado ou voc? nao está nestá estação.'],404);
         if (!$accept) { $pdo->prepare("DELETE FROM ship_crew WHERE ship_id=? AND status='pending'")->execute([$shipId]); mpResponse(['ok'=>true,'accepted'=>false]); }
         $pdo->beginTransaction();
         $busy=$pdo->prepare("SELECT 1 FROM ship_crew WHERE copilot_id=? AND status='active' FOR UPDATE"); $busy->execute([$userId]);
-        if ($busy->fetchColumn()) { $pdo->rollBack(); mpResponse(['error'=>'Voce ja esta a bordo de outra nave.'],409); }
+        if ($busy->fetchColumn()) { $pdo->rollBack(); mpResponse(['error'=>'Voc? já está a bordo de outra nave.'],409); }
         $pdo->prepare("UPDATE ship_crew SET status='active' WHERE ship_id=? AND copilot_id=? AND status='pending'")->execute([$shipId,$userId]);
         $pdo->prepare("UPDATE station_occupants SET mode='aboard',ship_id=?,room_pos_x=50,room_pos_z=66.5,room_yaw=0 WHERE user_id=?")->execute([$shipId,(int)$invitation['copilot_id']]);
         $pdo->commit(); mpResponse(['ok'=>true,'accepted'=>true]);
@@ -1273,16 +1401,16 @@ try {
 
     if ($action === 'crew-leave') {
         $q=$pdo->prepare("SELECT sc.ship_id,sc.station_id,s.docked_station_id FROM ship_crew sc JOIN ships s ON s.id=sc.ship_id WHERE sc.copilot_id=? AND sc.status='active' LIMIT 1"); $q->execute([$userId]); $crew=$q->fetch(PDO::FETCH_ASSOC);
-        if (!$crew) mpResponse(['error'=>'Voce nao esta como copiloto.'],409);
-        if ((int)($crew['docked_station_id']??0)!==(int)$crew['station_id']) mpResponse(['error'=>'Para desembarcar, peca ao piloto que acople a nave em uma estacao.'],409);
+        if (!$crew) mpResponse(['error'=>'Voc? nao está como copiloto.'],409);
+        if ((int)($crew['docked_station_id']??0)!==(int)$crew['station_id']) mpResponse(['error'=>'Para desembarcar, peca ao piloto que acople a nave em uma estação.'],409);
         $pdo->prepare("DELETE FROM ship_crew WHERE ship_id=?")->execute([(int)$crew['ship_id']]);
         $pdo->prepare("UPDATE station_occupants SET mode='station',ship_id=NULL,station_id=? WHERE user_id=?")->execute([(int)$crew['station_id'],$userId]);
         mpResponse(['ok'=>true]);
     }
 
     if ($action === 'station-undock') {
-        $q=$pdo->prepare("SELECT s.id,s.docked_station_id,ss.code FROM ships s JOIN space_stations ss ON ss.id=s.docked_station_id JOIN station_occupants so ON so.user_id=s.user_id AND so.station_id=s.docked_station_id AND so.mode='station' WHERE s.user_id=? AND s.is_active=1 AND s.docked_station_id IS NOT NULL LIMIT 1"); $q->execute([$userId]); $ship=$q->fetch(PDO::FETCH_ASSOC);
-        if (!$ship) mpResponse(['error'=>'Sua nave nao esta acoplada.'],409);
+        $q=$pdo->prepare("SELECT s.id,s.docked_station_id,ss.code FROM ships s JOIN space_stations ss ON ss.id=s.docked_station_id JOIN station_occupants so ON so.user_id=s.user_id AND so.mode='station' WHERE s.user_id=? AND s.is_active=1 AND s.docked_station_id IS NOT NULL LIMIT 1"); $q->execute([$userId]); $ship=$q->fetch(PDO::FETCH_ASSOC);
+        if (!$ship) mpResponse(['error'=>'Sua nave nao está acoplada.'],409);
         $pdo->prepare('UPDATE ships SET docked_station_id=NULL,heading=0,speed=0 WHERE id=?')->execute([(int)$ship['id']]);
         $pdo->prepare("DELETE FROM ship_crew WHERE status='pending' AND (ship_id=? OR copilot_id=?)")->execute([(int)$ship['id'],$userId]);
         $pdo->prepare("UPDATE station_trades SET status='cancelled' WHERE status='open' AND (player_a_id=? OR player_b_id=?)")->execute([$userId,$userId]);
@@ -1294,15 +1422,15 @@ try {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error'=>'Use POST.'],405);
         $code=strtolower(trim((string)(mpInput()['station']??'')));
         $q=$pdo->prepare('SELECT id,name,pos_x,pos_z,hull_hp FROM space_stations WHERE code=? AND is_active=1 LIMIT 1'); $q->execute([$code]); $station=$q->fetch(PDO::FETCH_ASSOC);
-        if (!$station || (int)$station['hull_hp']<1) mpResponse(['error'=>'Estacao destruida ou indisponivel.'],409);
+        if (!$station || (int)$station['hull_hp']<1) mpResponse(['error'=>'Estacao destruida ou indisponível.'],409);
         $q=$pdo->prepare("SELECT s.id,s.pos_x,s.pos_z,s.hull_hp,s.ship_class,e.code,e.damage,se.ammo_current FROM ships s LEFT JOIN ship_crew sc ON sc.ship_id=s.id AND sc.copilot_id=? AND sc.status='active' LEFT JOIN ship_equipment se ON se.ship_id=s.id AND se.is_equipped=1 AND se.quantity>0 AND EXISTS (SELECT 1 FROM equipment weapon_slot WHERE weapon_slot.id=se.equipment_id AND weapon_slot.equipment_type='weapon') LEFT JOIN equipment e ON e.id=se.equipment_id AND e.equipment_type='weapon' WHERE ((s.user_id=? AND sc.ship_id IS NULL) OR sc.copilot_id=?) AND s.is_active=1 AND s.docked_station_id IS NULL LIMIT 1"); $q->execute([$userId,$userId,$userId]); $attacker=$q->fetch(PDO::FETCH_ASSOC);
-        if (!$attacker || (int)$attacker['hull_hp']<1 || !$attacker['code'] || (int)$attacker['ammo_current']<1) mpResponse(['error'=>'E necessario estar na nave, fora da estacao, com canhao e municao.'],409);
+        if (!$attacker || (int)$attacker['hull_hp']<1 || !$attacker['code'] || (int)$attacker['ammo_current']<1) mpResponse(['error'=>'E necessario estar na nave, fora da estação, com canhao e munição.'],409);
         $distance=hypot((float)$attacker['pos_x']-(float)$station['pos_x'],(float)$attacker['pos_z']-(float)$station['pos_z']);
         if ($distance>25000) mpResponse(['error'=>'Aproxime-se a 25.000 km para atacar.'],409);
         $damage=max(5,(int)$attacker['damage']); if (($attacker['ship_class']??'explorer')==='attack') $damage=(int)round($damage*1.35);
         $pdo->beginTransaction();
         $ammo=$pdo->prepare('UPDATE ship_equipment SET ammo_current=ammo_current-1 WHERE ship_id=? AND is_equipped=1 AND ammo_current>0'); $ammo->execute([(int)$attacker['id']]);
-        if (!$ammo->rowCount()) { $pdo->rollBack(); mpResponse(['error'=>'Sem municao.'],409); }
+        if (!$ammo->rowCount()) { $pdo->rollBack(); mpResponse(['error'=>'Sem munição.'],409); }
         $pdo->prepare('UPDATE space_stations SET hull_hp=GREATEST(0,hull_hp-?) WHERE id=?')->execute([$damage,(int)$station['id']]);
         $q=$pdo->prepare('SELECT hull_hp FROM space_stations WHERE id=?'); $q->execute([(int)$station['id']]); $remaining=(int)$q->fetchColumn();
         $pdo->commit(); mpResponse(['ok'=>true,'damage'=>$damage,'hull'=>$remaining,'destroyed'=>$remaining===0,'station'=>$station['name']]);
@@ -1421,16 +1549,16 @@ try {
             if ($recipientId < 1 || $recipientId === $userId || !mpAreFriends($pdo, $userId, $recipientId)) mpResponse(['error' => 'O audio privado so pode ser enviado para amigos.'], 403);
             $online = $pdo->prepare('SELECT id FROM users WHERE id=? AND is_active=1 AND last_seen_at >= DATE_SUB(NOW(), INTERVAL 20 SECOND)');
             $online->execute([$recipientId]);
-            if (!$online->fetchColumn()) mpResponse(['error' => 'Esse amigo esta offline no momento.'], 409);
+            if (!$online->fetchColumn()) mpResponse(['error' => 'Esse amigo está offline no momento.'], 409);
             $recipientIds = [$recipientId];
         } elseif ($channelType === 'station') {
             $stationQuery=$pdo->prepare('SELECT station_id FROM station_occupants WHERE user_id=? LIMIT 1'); $stationQuery->execute([$userId]); $stationId=(int)$stationQuery->fetchColumn();
-            if (!$stationId) mpResponse(['error'=>'Entre em uma estacao para usar a comunicacao interna.'],409);
+            if (!$stationId) mpResponse(['error'=>'Entre em uma estação para usar a comunicacao interna.'],409);
             $rate=$pdo->prepare("SELECT COUNT(DISTINCT storage_path) FROM voice_messages WHERE sender_id=? AND channel_type='station' AND created_at>=DATE_SUB(NOW(),INTERVAL 1 MINUTE)"); $rate->execute([$userId]);
             if ((int)$rate->fetchColumn()>=5) mpResponse(['error'=>'Aguarde um pouco antes de transmitir novamente.'],429);
             $occupantsQuery=$pdo->prepare('SELECT so.user_id FROM station_occupants so JOIN users u ON u.id=so.user_id WHERE so.station_id=? AND so.user_id<>? AND u.is_active=1 AND u.last_seen_at>=DATE_SUB(NOW(),INTERVAL 30 SECOND)'); $occupantsQuery->execute([$stationId,$userId]);
             $recipientIds=array_map('intval',$occupantsQuery->fetchAll(PDO::FETCH_COLUMN));
-            if (!$recipientIds) mpResponse(['error'=>'Nao ha outros jogadores na estacao para ouvir.'],409);
+            if (!$recipientIds) mpResponse(['error'=>'Nao ha outros jogadores na estação para ouvir.'],409);
         } else {
             $senderShipQuery = $pdo->prepare("SELECT s.pos_x,s.pos_z FROM ships s LEFT JOIN ship_crew sc ON sc.ship_id=s.id AND sc.copilot_id=? AND sc.status='active' WHERE ((s.user_id=? AND NOT EXISTS (SELECT 1 FROM ship_crew own_crew WHERE own_crew.copilot_id=? AND own_crew.status='active')) OR sc.ship_id=s.id) AND s.is_active=1 AND s.hull_hp>0 LIMIT 1");
             $senderShipQuery->execute([$userId,$userId,$userId]);

@@ -86,7 +86,7 @@
     if (element.id === 'full') element.textContent = '\u26F6';
     if (element.id === 'stationClose') {
       element.textContent = '\u00D7';
-      element.setAttribute('aria-label', 'Fechar terminal da esta\u00E7\u00E3o');
+      element.setAttribute('aria-label', 'Fechar terminal da está\u00E7\u00E3o');
     }
   }
 

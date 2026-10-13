@@ -28,7 +28,7 @@ $bodies = [
     ['id'=>'sol','name'=>'Sol','type'=>'Estrela','x'=>50000,'y'=>0,'z'=>86000,'r'=>400,'color'=>'#ffd878','texture'=>'sun'],
     ['id'=>'aurora','name'=>'Porto Aurora','type'=>'Estação','x'=>-3000,'y'=>0,'z'=>9000,'r'=>220,'color'=>'#7bd5df','texture'=>'station','design'=>0],
     ['id'=>'orbitalis','name'=>'Orbitalis','type'=>'Estação','x'=>92000,'y'=>0,'z'=>74000,'r'=>225,'color'=>'#ffbe77','texture'=>'station','design'=>1],
-    ['id'=>'forja','name'=>'Forja do Cintão','type'=>'Estação','x'=>-70000,'y'=>0,'z'=>-60000,'r'=>240,'color'=>'#ff687b','texture'=>'station','design'=>2],
+    ['id'=>'forjá','name'=>'Forjá do Cintão','type'=>'Estação','x'=>-70000,'y'=>0,'z'=>-60000,'r'=>240,'color'=>'#ff687b','texture'=>'station','design'=>2],
     ['id'=>'celestia','name'=>'Celestia','type'=>'Estação','x'=>-88000,'y'=>0,'z'=>82000,'r'=>230,'color'=>'#ffe0a0','texture'=>'station','design'=>3],
     ['id'=>'khepri','name'=>'Estaleiro Khepri','type'=>'Estação','x'=>-30000,'y'=>0,'z'=>-6000,'r'=>240,'color'=>'#ffa657','texture'=>'station','design'=>4],
     ['id'=>'biosfera','name'=>'Biosfera','type'=>'Estação','x'=>80000,'y'=>0,'z'=>-96000,'r'=>230,'color'=>'#7ee7f0','texture'=>'station','design'=>5],
@@ -36,6 +36,19 @@ $bodies = [
     ['id'=>'polaris','name'=>'Farol Polaris','type'=>'Estação','x'=>69000,'y'=>0,'z'=>-32000,'r'=>200,'color'=>'#c7d8ef','texture'=>'station','design'=>7],
     ['id'=>'icaro','name'=>'Refúgio Ícaro','type'=>'Estação','x'=>-65000,'y'=>0,'z'=>-16000,'r'=>220,'color'=>'#7cebb0','texture'=>'station','design'=>8],
     ['id'=>'vesper','name'=>'Nexo Vésper','type'=>'Estação','x'=>5000,'y'=>0,'z'=>-63000,'r'=>210,'color'=>'#bde9fe','texture'=>'station','design'=>9],
+    ['id'=>'vortice','name'=>'Nébula Vórtice','type'=>'Estação','x'=>108000,'y'=>0,'z'=>-28000,'r'=>245,'color'=>'#8d7bff','texture'=>'station','design'=>10],
+    ['id'=>'aegis','name'=>'Cidadela Aegis','type'=>'Estação','x'=>-110000,'y'=>0,'z'=>-25000,'r'=>260,'color'=>'#62e6d2','texture'=>'station','design'=>11],
+    ['id'=>'járdim-io','name'=>'Jardim de Ío','type'=>'Estação','x'=>34000,'y'=>0,'z'=>112000,'r'=>250,'color'=>'#72f0ad','texture'=>'station','design'=>12],
+    ['id'=>'bastilha-rubra','name'=>'Bastilha Rubra','type'=>'Estação','x'=>-4000,'y'=>0,'z'=>-113000,'r'=>270,'color'=>'#ff596e','texture'=>'station','design'=>13],
+    ['id'=>'prisma-boreal','name'=>'Prisma Boreal','type'=>'Estação','x'=>108000,'y'=>0,'z'=>75000,'r'=>250,'color'=>'#69d9ff','texture'=>'station','design'=>14],
+    ['id'=>'cruz-orion','name'=>'Cruz de Órion','type'=>'Estação','x'=>132000,'y'=>0,'z'=>128000,'r'=>270,'color'=>'#51cfff','texture'=>'station','design'=>15],
+    ['id'=>'anel-gaia','name'=>'Anel de Gaia','type'=>'Estação','x'=>-146000,'y'=>0,'z'=>128000,'r'=>285,'color'=>'#64e4c8','texture'=>'station','design'=>16],
+    ['id'=>'anel-nereida','name'=>'Anel de Nereida','type'=>'Estação','x'=>140000,'y'=>0,'z'=>-145000,'r'=>275,'color'=>'#8fcaff','texture'=>'station','design'=>17],
+    ['id'=>'cupula-helix','name'=>'Cúpula Helix','type'=>'Estação','x'=>-140000,'y'=>0,'z'=>-136000,'r'=>280,'color'=>'#75d9ff','texture'=>'station','design'=>18],
+    ['id'=>'gemeas-eos','name'=>'Gêmeas de Eos','type'=>'Estação','x'=>0,'y'=>0,'z'=>156000,'r'=>290,'color'=>'#ffc675','texture'=>'station','design'=>19],
+    ['id'=>'bastilha-orion','name'=>'Bastilha de Órion','type'=>'Estação','x'=>-158000,'y'=>0,'z'=>68000,'r'=>285,'color'=>'#52cfff','texture'=>'station','design'=>20],
+    ['id'=>'lanca-orion','name'=>'Lança de Órion','type'=>'Estação','x'=>162000,'y'=>0,'z'=>92000,'r'=>290,'color'=>'#68baff','texture'=>'station','design'=>21],
+    ['id'=>'coroa-orion','name'=>'Coroa de Órion','type'=>'Estação','x'=>-165000,'y'=>0,'z'=>-97000,'r'=>300,'color'=>'#68e4ec','texture'=>'station','design'=>22],
 ];
 
 // Escala do setor ampliada para criar rotas longas entre estações.
