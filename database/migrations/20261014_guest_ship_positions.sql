@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS guest_ship_positions (
+  session_key CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  position_data JSON NOT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (session_key)
+) ENGINE=InnoDB;

@@ -31,6 +31,13 @@ CREATE TABLE IF NOT EXISTS user_ship_positions (
   CONSTRAINT fk_user_ship_positions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS guest_ship_positions (
+  session_key CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  position_data JSON NOT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (session_key)
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS user_control_layouts (
   user_id BIGINT UNSIGNED NOT NULL,
   tool_order JSON NOT NULL,

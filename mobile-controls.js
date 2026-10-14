@@ -2,11 +2,13 @@
   const style = document.createElement('style');
   style.textContent = `
     .mobile-cockpit{display:none}
-    @media(max-width:767px), (pointer:coarse){
+    @media(max-width:767px), (max-width:1024px) and (pointer:coarse){
       html,body{width:100%;height:100%;height:100dvh;overflow:hidden;overscroll-behavior:none}
       #space{height:100dvh;inset:0;touch-action:none}
       .grain,.reticle,.labels{pointer-events:none}
       .top,.leftpanel,.bottomleft,.bottomright,.help,.control-sidebar,#leftControlDock{display:none!important}
+      .mobile-cockpit.interior-mode{z-index:130!important}.mobile-cockpit.interior-mode .mc-hud,.mobile-cockpit.interior-mode .mc-menu-toggle,.mobile-cockpit.interior-mode .mc-menu,.mobile-cockpit.interior-mode .mc-pop,.mobile-cockpit.interior-mode .mc-context,.mobile-cockpit.interior-mode .mc-joystick,.mobile-cockpit.interior-mode .mc-actions{display:none!important}.mobile-cockpit.interior-mode .mc-fullscreen{top:calc(env(safe-area-inset-top) + 62px);right:calc(env(safe-area-inset-right) + 10px);z-index:8}
+
       .mobile-cockpit{position:fixed;inset:0;z-index:35;display:block;height:100dvh;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);pointer-events:none;font-family:'Space Mono',monospace;color:#e9fbff;touch-action:none;user-select:none;-webkit-user-select:none}
       .mc-hud{position:absolute;top:calc(env(safe-area-inset-top) + 8px);left:50%;transform:translateX(-50%);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;width:min(360px,calc(100vw - 112px));padding:6px;border:1px solid #55d8eb55;border-radius:13px;background:linear-gradient(135deg,#061521df,#071b28c9);box-shadow:0 0 20px #20cde41c;backdrop-filter:blur(10px)}
       .mc-stat{min-width:0;text-align:center}.mc-stat b{display:block;font-size:11px;line-height:1.2;font-weight:500;color:#dcfaff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mc-stat small{display:block;margin-top:3px;font-size:7px;letter-spacing:.1em;color:#71b9c8}.mc-integrity{grid-column:span 2}.mc-target{grid-column:span 3;text-align:left;padding-left:4px}.mc-target b{font-size:9px}.mc-target small{text-align:left}.mc-target .mc-loc{display:block;margin-top:2px;font-size:6px;color:#6699a7}.mc-bar{height:2px;margin-top:4px;background:#123340}.mc-bar i{display:block;width:100%;height:100%;background:#57dfe8;box-shadow:0 0 7px #57dfe8}
@@ -60,7 +62,7 @@
     </div>`;
   document.body.appendChild(ui);
 
-  const media = matchMedia('(max-width:767px), (pointer:coarse)');
+  const media = matchMedia('(max-width:767px), (max-width:1024px) and (pointer:coarse)');
   const menu = ui.querySelector('#mcMenu');
   const menuToggle = ui.querySelector('#mcMenuToggle');
   function setMenuOpen(open) {
@@ -80,11 +82,23 @@
   const panelSources = {
     map: ['.mapbox'], route: ['#routePanel'], cargo: ['#cargoBay'], weapons: ['.navbox']
   };
+  let lastInteriorMode = '';
   function setMobileEnabled() {
-    ui.style.display = media.matches ? 'block' : 'none';
-    const hidden = !media.matches || document.querySelector('#stationScreen.open, .crew-interior.open, .passenger-cabin.open');
-    if (hidden) closePop();
-    ui.querySelectorAll('.mc-action,[data-hold]').forEach(button => { if (hidden) releaseButton(button); });
+    const interior = document.querySelector('.crew-interior.open, .passenger-cabin.open');
+    const stationPanel = document.querySelector('#stationScreen.open');
+    const flightSuspended = Boolean(stationPanel || interior);
+    ui.style.display = media.matches && (!stationPanel || interior) ? 'block' : 'none';
+    ui.style.zIndex = interior ? '130' : '';
+    ui.classList.toggle('interior-mode', Boolean(interior));
+    const interiorMode = interior?.classList.contains('passenger-cabin') ? 'passenger' : interior ? 'station' : '';
+    if (interiorMode === 'passenger' && lastInteriorMode !== 'passenger') {
+      const displays = document.querySelector('.passenger-displays');
+      displays?.classList.add('collapsed');
+      displays?.querySelector('.passenger-fold-all')?.setAttribute('aria-expanded', 'false');
+    }
+    lastInteriorMode = interiorMode;
+    if (flightSuspended || !media.matches) closePop();
+    ui.querySelectorAll('.mc-action,[data-hold]').forEach(button => { if (flightSuspended || !media.matches) releaseButton(button); });
   }
   function releaseButton(button) {
     for (const id of [...heldPointers.keys()]) if (heldPointers.get(id) === button) heldPointers.delete(id);

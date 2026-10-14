@@ -140,6 +140,15 @@ function h(string $value): string { return htmlspecialchars($value, ENT_QUOTES |
     .register-submit{grid-column:1;grid-row:3}.register-note{grid-column:2;grid-row:3}
     @media(max-width:760px){.register-form{grid-template-columns:1fr}.register-fields,.ship-picker,.starter-pledge,.register-submit,.register-note{grid-column:1;grid-row:auto}.ship-choice-grid{grid-template-columns:1fr}.ship-choice{display:grid;grid-template-columns:112px 1fr;grid-template-rows:auto auto 1fr;column-gap:11px}.ship-choice-art{grid-column:1;grid-row:1 / span 4;height:90px;margin:0}.ship-choice-tag,.ship-choice-title,.ship-choice-desc,.ship-choice-specs{grid-column:2}.ship-choice-desc{min-height:auto}.register-submit{margin-top:14px}.register-note{margin-top:12px}}
   </style>
+  <style>
+    @media(max-width:767px),(max-width:1024px) and (pointer:coarse){
+      html{min-height:100%;overflow-x:hidden}body{display:block;width:100%;min-height:100vh;min-height:100dvh;overflow-x:hidden;overflow-y:auto;padding:max(env(safe-area-inset-top),12px) max(env(safe-area-inset-right),12px) max(env(safe-area-inset-bottom),16px) max(env(safe-area-inset-left),12px)}
+      .login-shell,.login-shell.register-shell{width:min(100%,440px);margin:0 auto;padding:clamp(18px,5vw,26px)}.eyebrow{margin-top:20px}.intro{margin-bottom:16px}.tabs{margin-bottom:14px}.field{margin:11px 0}.field input{min-height:44px}.submit{min-height:44px}.note{line-height:1.55}
+    }
+    @media(max-width:1024px) and (pointer:coarse) and (max-height:500px){
+      body{padding-top:max(env(safe-area-inset-top),6px);padding-bottom:max(env(safe-area-inset-bottom),6px)}.login-shell,.login-shell.register-shell{padding:12px 18px}.brand{font-size:14px}.eyebrow{margin-top:8px;font-size:8px}.title{margin:4px 0;font-size:27px;line-height:1.05}.intro{display:none}.tabs{gap:16px;margin-bottom:7px}.tabs a{padding-bottom:6px}.field{margin:5px 0}.field span{margin-bottom:4px;font-size:8px}.field input{min-height:32px;padding:7px 10px}.submit{min-height:36px;margin-top:4px;padding:9px;font-size:9px}.note{margin-top:8px;font-size:7px;line-height:1.35}.back{margin-top:8px;font-size:8px}
+    }
+  </style>
 </head>
 <body>
   <main class="login-shell <?= $mode === 'register' ? 'register-shell' : '' ?>">
