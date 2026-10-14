@@ -327,7 +327,7 @@ CREATE TABLE IF NOT EXISTS station_occupants (
   CONSTRAINT fk_station_occupant_ship FOREIGN KEY (ship_id) REFERENCES ships(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
-CREATE TABLE IF NOT EXISTS station_voice_signals (
+CREATE TABLE IF NOT EXISTS station_voice_signals_v2 (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   station_id BIGINT UNSIGNED NOT NULL,
   sender_id BIGINT UNSIGNED NOT NULL,
@@ -339,9 +339,9 @@ CREATE TABLE IF NOT EXISTS station_voice_signals (
   PRIMARY KEY (id),
   KEY ix_station_voice_recipient (station_id, recipient_id, read_at, id),
   KEY ix_station_voice_expiry (created_at),
-  CONSTRAINT fk_station_voice_station FOREIGN KEY (station_id) REFERENCES space_stations(id) ON DELETE CASCADE,
-  CONSTRAINT fk_station_voice_sender FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
-  CONSTRAINT fk_station_voice_recipient FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE
+  CONSTRAINT fk_station_voice_v2_station FOREIGN KEY (station_id) REFERENCES space_stations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_station_voice_v2_sender FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_station_voice_v2_recipient FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS station_trades (
