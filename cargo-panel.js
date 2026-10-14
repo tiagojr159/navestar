@@ -14,8 +14,20 @@ window.createCargoPanel = function ({onToggle=()=>{},onJettison=()=>{},canJettis
   const jettisonStyle=document.createElement('style');jettisonStyle.textContent=`.cargo-jettison-button{width:100%;margin-top:9px;padding:8px;border:1px solid rgba(255,177,116,.38);background:rgba(125,62,34,.2);color:#ffd1a4;font:7px 'Space Mono';letter-spacing:.1em;cursor:pointer}.cargo-jettison-button:hover{border-color:#ffc084;background:rgba(125,62,34,.34)}.cargo-jettison-button:disabled{opacity:.45;cursor:not-allowed}`;document.head.appendChild(jettisonStyle);
   panel.querySelector('.cargo-capacity').insertAdjacentHTML('afterend','<button type="button" class="cargo-jettison-button" id="cargoJettisonButton">DESCARTAR MINÉRIO NO ESPAÇO</button>');
   panel.querySelector('#cargoJettisonButton').addEventListener('click',()=>onJettison());
-  document.querySelector('#cargoFold').addEventListener('click', event => {
+  const cargoFold = document.querySelector('#cargoFold');
+  try {
+    const saved = localStorage.getItem('navestar-panel-cargo-collapsed');
+    if (saved !== null) {
+      const collapsed = saved === 'true';
+      panel.classList.toggle('collapsed', collapsed);
+      cargoFold.textContent = collapsed ? '+' : '\u2212';
+      cargoFold.setAttribute('aria-expanded', String(!collapsed));
+      cargoFold.setAttribute('aria-label', collapsed ? 'Expandir compartimento' : 'Recolher compartimento');
+    }
+  } catch (_) {}
+  cargoFold.addEventListener('click', event => {
     const collapsed = panel.classList.toggle('collapsed');
+    try { localStorage.setItem('navestar-panel-cargo-collapsed', String(collapsed)); } catch (_) {}
     event.currentTarget.textContent = collapsed ? '+' : '−';
     event.currentTarget.setAttribute('aria-expanded', String(!collapsed));
     event.currentTarget.setAttribute('aria-label', collapsed ? 'Expandir compartimento' : 'Recolher compartimento');

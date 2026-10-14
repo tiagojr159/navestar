@@ -5,7 +5,9 @@
   function panel(title, key, node) {
     if (!node) return null;
     const section = document.createElement('section');
-    section.className = 'dock-section';
+    let initiallyCollapsed = false;
+    try { initiallyCollapsed = localStorage.getItem('navestar-panel-' + key + '-collapsed') === 'true'; } catch (_) {}
+    section.className = 'dock-section' + (initiallyCollapsed ? ' collapsed' : '');
     section.dataset.section = key;
     const head = document.createElement('header');
     head.className = 'dock-section-head';
@@ -14,9 +16,9 @@
     const toggle = document.createElement('button');
     toggle.type = 'button';
     toggle.className = 'dock-section-toggle';
-    toggle.textContent = '\u2212';
-    toggle.setAttribute('aria-label', 'Minimizar ' + title.toLowerCase());
-    toggle.setAttribute('aria-expanded', 'true');
+    toggle.textContent = initiallyCollapsed ? '+' : '\u2212';
+    toggle.setAttribute('aria-label', (initiallyCollapsed ? 'Expandir ' : 'Minimizar ') + title.toLowerCase());
+    toggle.setAttribute('aria-expanded', String(!initiallyCollapsed));
     const body = document.createElement('div');
     body.className = 'dock-section-body';
     body.append(node);
@@ -24,6 +26,7 @@
     section.append(head, body);
     toggle.addEventListener('click', () => {
       const collapsed = section.classList.toggle('collapsed');
+      try { localStorage.setItem('navestar-panel-' + key + '-collapsed', String(collapsed)); } catch (_) {}
       toggle.textContent = collapsed ? '+' : '\u2212';
       toggle.setAttribute('aria-expanded', String(!collapsed));
       toggle.setAttribute('aria-label', (collapsed ? 'Expandir ' : 'Minimizar ') + title.toLowerCase());
@@ -207,8 +210,37 @@
     sync();
     new MutationObserver(sync).observe(button, {attributes:true, attributeFilter:['aria-expanded'], childList:true, characterData:true, subtree:true});
   }
-  normalizeToggle(document.querySelector('#routeMinimize'));
+  const routePanel = document.querySelector('#routePanel');
+  const routeToggle = document.querySelector('#routeMinimize');
+  try {
+    const saved = localStorage.getItem('navestar-panel-route-collapsed');
+    if (saved !== null && routePanel && routeToggle) {
+      const collapsed = saved === 'true';
+      routePanel.classList.toggle('collapsed', collapsed);
+      routeToggle.setAttribute('aria-expanded', String(!collapsed));
+      routeToggle.setAttribute('aria-label', collapsed ? 'Expandir planejador' : 'Minimizar planejador');
+    }
+  } catch (_) {}
+  routeToggle?.addEventListener('click', () => {
+    try { localStorage.setItem('navestar-panel-route-collapsed', String(routePanel.classList.contains('collapsed'))); } catch (_) {}
+  });
+  normalizeToggle(routeToggle);
   normalizeToggle(document.querySelector('#cargoFold'));
+  const navBox = document.querySelector('.navbox');
+  const navFold = document.querySelector('#navFold');
+  try {
+    const saved = localStorage.getItem('navestar-panel-telemetry-collapsed');
+    if (saved !== null && navBox && navFold) {
+      const collapsed = saved === 'true';
+      navBox.classList.toggle('expanded', !collapsed);
+      navFold.setAttribute('aria-expanded', String(!collapsed));
+      navFold.setAttribute('aria-label', collapsed ? 'Mostrar detalhes de telemetria' : 'Ocultar detalhes de telemetria');
+      navFold.lastElementChild.textContent = collapsed ? '＋' : '−';
+    }
+  } catch (_) {}
+  navFold?.addEventListener('click', () => {
+    try { localStorage.setItem('navestar-panel-telemetry-collapsed', String(!navBox.classList.contains('expanded'))); } catch (_) {}
+  });
 
   const header = document.createElement('div');
   header.className = 'control-sidebar-title';
