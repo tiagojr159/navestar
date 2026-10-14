@@ -2,7 +2,7 @@
   const style = document.createElement('style');
   style.textContent = `
     .mobile-cockpit{display:none}
-    @media(max-width:767px){
+    @media(max-width:767px), (pointer:coarse){
       html,body{width:100%;height:100%;height:100dvh;overflow:hidden;overscroll-behavior:none}
       #space{height:100dvh;inset:0;touch-action:none}
       .grain,.reticle,.labels{pointer-events:none}
@@ -10,7 +10,7 @@
       .mobile-cockpit{position:fixed;inset:0;z-index:35;display:block;height:100dvh;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);pointer-events:none;font-family:'Space Mono',monospace;color:#e9fbff;touch-action:none;user-select:none;-webkit-user-select:none}
       .mc-hud{position:absolute;top:calc(env(safe-area-inset-top) + 8px);left:50%;transform:translateX(-50%);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;width:min(360px,calc(100vw - 112px));padding:6px;border:1px solid #55d8eb55;border-radius:13px;background:linear-gradient(135deg,#061521df,#071b28c9);box-shadow:0 0 20px #20cde41c;backdrop-filter:blur(10px)}
       .mc-stat{min-width:0;text-align:center}.mc-stat b{display:block;font-size:11px;line-height:1.2;font-weight:500;color:#dcfaff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mc-stat small{display:block;margin-top:3px;font-size:7px;letter-spacing:.1em;color:#71b9c8}.mc-integrity{grid-column:span 2}.mc-target{grid-column:span 3;text-align:left;padding-left:4px}.mc-target b{font-size:9px}.mc-target small{text-align:left}.mc-target .mc-loc{display:block;margin-top:2px;font-size:6px;color:#6699a7}.mc-bar{height:2px;margin-top:4px;background:#123340}.mc-bar i{display:block;width:100%;height:100%;background:#57dfe8;box-shadow:0 0 7px #57dfe8}
-      .mc-menu-toggle{position:absolute;top:calc(env(safe-area-inset-top) + 8px);left:calc(env(safe-area-inset-left) + 8px);z-index:4;width:44px;height:44px;border:1px solid #68e7efaa;border-radius:13px;background:linear-gradient(145deg,#0b3040f2,#061622f2);color:#bdfcff;font:24px 'Space Mono';box-shadow:0 0 18px #26cde433;pointer-events:auto;touch-action:manipulation}.mc-menu-toggle:active,.mc-menu-toggle[aria-expanded="true"]{background:#0c5363;color:#fff;box-shadow:0 0 16px #26cde477}.mc-menu{position:absolute;top:calc(env(safe-area-inset-top) + 60px);left:calc(env(safe-area-inset-left) + 8px);z-index:4;display:none;grid-template-columns:repeat(4,42px);gap:7px;padding:8px;border:1px solid #54c9dc70;border-radius:14px;background:#04121eeF;box-shadow:0 8px 24px #0009;backdrop-filter:blur(12px);pointer-events:auto}.mc-menu.open{display:grid}.mc-menu .mc-icon{width:42px;height:42px;border:1px solid #54c9dc70;border-radius:11px;background:#061b29;color:#9af4ff;font-size:19px;touch-action:manipulation}.mc-menu .mc-icon:active,.mc-menu .mc-icon.active{background:#0c5363;color:#fff;border-color:#7af6ff;box-shadow:0 0 14px #26cde477}.mc-menu .mc-icon small{display:none}
+      .mc-menu-toggle{position:absolute;top:calc(env(safe-area-inset-top) + 8px);left:calc(env(safe-area-inset-left) + 8px);z-index:4;width:44px;height:44px;border:1px solid #68e7efaa;border-radius:13px;background:linear-gradient(145deg,#0b3040f2,#061622f2);color:#bdfcff;font:24px 'Space Mono';box-shadow:0 0 18px #26cde433;pointer-events:auto;touch-action:manipulation}.mc-menu-toggle:active,.mc-menu-toggle[aria-expanded="true"]{background:#0c5363;color:#fff;box-shadow:0 0 16px #26cde477}.mc-fullscreen{position:absolute;top:calc(env(safe-area-inset-top) + 8px);right:calc(env(safe-area-inset-right) + 8px);z-index:4;width:44px;height:44px;border:1px solid #68e7efaa;border-radius:13px;background:linear-gradient(145deg,#0b3040f2,#061622f2);color:#bdfcff;font:21px 'Space Mono';box-shadow:0 0 18px #26cde433;pointer-events:auto;touch-action:manipulation}.mc-fullscreen.active{background:#0c5363;color:#fff;box-shadow:0 0 16px #26cde477}.mc-menu{position:absolute;top:calc(env(safe-area-inset-top) + 60px);left:calc(env(safe-area-inset-left) + 8px);z-index:4;display:none;grid-template-columns:repeat(4,42px);gap:7px;padding:8px;border:1px solid #54c9dc70;border-radius:14px;background:#04121eeF;box-shadow:0 8px 24px #0009;backdrop-filter:blur(12px);pointer-events:auto}.mc-menu.open{display:grid}.mc-menu .mc-icon{width:42px;height:42px;border:1px solid #54c9dc70;border-radius:11px;background:#061b29;color:#9af4ff;font-size:19px;touch-action:manipulation}.mc-menu .mc-icon:active,.mc-menu .mc-icon.active{background:#0c5363;color:#fff;border-color:#7af6ff;box-shadow:0 0 14px #26cde477}.mc-menu .mc-icon small{display:none}
       .mc-joystick{position:absolute;left:calc(env(safe-area-inset-left) + 18px);bottom:calc(env(safe-area-inset-bottom) + 20px);width:142px;height:142px;border:1px solid #5cd7e55e;border-radius:50%;background:radial-gradient(circle,#1a60715c,#061724b8 68%);box-shadow:inset 0 0 28px #41d0e91c,0 6px 24px #0008;pointer-events:auto;touch-action:none}
       .mc-joystick:before,.mc-joystick:after{content:'';position:absolute;background:#67cbd633}.mc-joystick:before{width:1px;height:100%;left:50%}.mc-joystick:after{height:1px;width:100%;top:50%}
       .mc-stick{position:absolute;left:50%;top:50%;width:54px;height:54px;transform:translate(-50%,-50%);border:1px solid #7ce7f4;border-radius:50%;background:radial-gradient(circle at 35% 30%,#3191a4,#0a3041 78%);box-shadow:0 0 18px #37d5eb55;pointer-events:none}
@@ -36,6 +36,7 @@
       <div class="mc-stat mc-target"><b id="mcTarget">ALVO</b><small id="mcDistance">— KM</small><small class="mc-loc" id="mcLocation">SETOR —</small></div>
     </div>
     <button class="mc-menu-toggle" id="mcMenuToggle" type="button" aria-label="Abrir menu de sistemas" aria-expanded="false">☰</button>
+    <button class="mc-fullscreen" id="mcFullscreen" type="button" aria-label="Entrar em tela cheia" title="Tela cheia">⛶</button>
     <nav class="mc-menu" id="mcMenu" aria-label="Abas da nave">
       <button class="mc-icon" data-panel="map" aria-label="Mapa" title="Mapa">⌖<small>MAPA</small></button>
       <button class="mc-icon" data-panel="route" aria-label="Navegação" title="Navegação">➤<small>ROTA</small></button>
@@ -59,7 +60,7 @@
     </div>`;
   document.body.appendChild(ui);
 
-  const media = matchMedia('(max-width:767px)');
+  const media = matchMedia('(max-width:767px), (pointer:coarse)');
   const menu = ui.querySelector('#mcMenu');
   const menuToggle = ui.querySelector('#mcMenuToggle');
   function setMenuOpen(open) {
@@ -69,6 +70,10 @@
     menuToggle.textContent = open ? '×' : '☰';
   }
   menuToggle.addEventListener('click', () => setMenuOpen(!menu.classList.contains('open')));
+  const fullscreenToggle = ui.querySelector('#mcFullscreen');
+  function syncFullscreenButton() { const active=Boolean(document.fullscreenElement); fullscreenToggle.classList.toggle('active',active); fullscreenToggle.setAttribute('aria-label',active?'Sair da tela cheia':'Entrar em tela cheia'); }
+  fullscreenToggle.addEventListener('click', async event => { event.preventDefault(); try { if(document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen({navigationUI:'hide'}); } catch {} syncFullscreenButton(); });
+  document.addEventListener('fullscreenchange',syncFullscreenButton);
   menu.addEventListener('click', event => { if (event.target.closest('.mc-icon')) setMenuOpen(false); });
   const pop = ui.querySelector('#mcPop');
   const panelSlots = {};
