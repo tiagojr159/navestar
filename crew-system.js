@@ -223,14 +223,20 @@ document.head.appendChild(stationDashboardStyle);
   const $ = selector => overlay.querySelector(selector);
   const $$ = selector => socialModal.querySelector(selector);
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-  async function request(action, payload, query='') {
-    const response = await fetch(api + '?action=' + encodeURIComponent(action) + query, {
-      method: payload ? 'POST' : 'GET', headers: payload ? {'Content-Type':'application/json'} : {},
-      body: payload ? JSON.stringify(payload) : undefined, cache: 'no-store'
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Falha de comunicacao com a estação.');
-    return data;
+  async function request(action, payload, query='', timeoutMs=0) {
+    const controller=timeoutMs>0?new AbortController():null,timer=controller?setTimeout(()=>controller.abort(),timeoutMs):0;
+    try {
+      const response = await fetch(api + '?action=' + encodeURIComponent(action) + query, {
+        method: payload ? 'POST' : 'GET', headers: payload ? {'Content-Type':'application/json'} : {},
+        body: payload ? JSON.stringify(payload) : undefined, cache: 'no-store', signal: controller?.signal
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Falha de comunicacao com a estação.');
+      return data;
+    } catch(error) {
+      if(controller?.signal.aborted)throw new Error('A estação não respondeu a tempo. A animação foi interrompida; confira o estado da nave antes de repetir.');
+      throw error;
+    } finally { if(timer)clearTimeout(timer); }
   }
   function status(message) { const node=$('#crewStatus'); if(node)node.textContent = message || ''; }
   let contactTarget=null,currentTradeId=0,tradeBusy=false,lastTradeState=null;
@@ -433,10 +439,11 @@ document.head.appendChild(stationDashboardStyle);
   async function dockAndEnter(body) {
     if (!body || !Array.isArray(window.stationIds)||!window.stationIds.includes(body.id) || state.docking) return;
     state.docking = true;
-    const cinematic = window.dockingCinematic?.start(body);
+    window.dockingRequested = true;
     try {
-      status('Acoplando nave...');
-      const result = await request('station-dock', {station: body.id});
+      status('Confirmando acoplamento...');
+      const result = await request('station-dock', {station: body.id}, '', 8000);
+      const cinematic = window.dockingCinematic?.start(body);
       await cinematic;
       window.dockingCinematic?.finish();
       window.gameAudio?.play('dock');
@@ -445,8 +452,16 @@ document.head.appendChild(stationDashboardStyle);
       await refresh();
       if(!state.inside) throw new Error('A nave acoplou, mas a sala não carregou. Clique em ATUALIZAR dentro da sala ou tente entrar novamente.');
       status('Nave guardada em ' + result.station + '. Convide um piloto para ocupar a cadeira de copiloto.');
-    } catch (error) { await window.dockingCinematic?.cancel(); state.forceInterior=false; if(!state.inside)hide(); alert(error.message); }
-    finally { state.docking = false; }
+    } catch (error) {
+      await window.dockingCinematic?.cancel(); state.forceInterior=false; if(!state.inside)hide();
+      const message=error.message||'Não foi possível acoplar a nave.';
+      status(message);
+      const dockStatus=document.querySelector('#dockStatus'),routeStatus=document.querySelector('#routeStatus'),toast=document.querySelector('#toast');
+      if(dockStatus)dockStatus.textContent=message;
+      if(routeStatus)routeStatus.textContent=message;
+      if(toast){toast.textContent=message;toast.style.cssText+=';z-index:210;max-width:calc(100vw - 28px);padding:10px 12px;border:1px solid #65dbe788;border-radius:5px;background:#061521ed;line-height:1.45;text-align:center';toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),5000)}
+    }
+    finally { window.dockingRequested = false; state.docking = false; }
   }
   async function undockForOrbit() {
     if (!window.crewDocked) return;

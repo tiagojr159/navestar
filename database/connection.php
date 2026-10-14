@@ -35,10 +35,13 @@ function db(): PDO
     $charset = getenv('DB_CHARSET') ?: ($databaseConfig['charset'] ?? 'utf8mb4');
 
     $dsn = "mysql:host={$host};dbname={$database};charset={$charset}";
+    // Bound MySQL handshake/read stalls so a dead local DB cannot pin an Apache worker.
+    ini_set('mysqlnd.net_read_timeout', '6');
     $connection = new PDO($dsn, $username, $password, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         PDO::ATTR_EMULATE_PREPARES => false,
+        PDO::ATTR_TIMEOUT => 4,
     ]);
 
     return $connection;
