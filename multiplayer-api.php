@@ -597,15 +597,17 @@ try {
 
     if ($action === 'cargo-jettison') {
         if ($_SERVER['REQUEST_METHOD']!=='POST') mpResponse(['error'=>'Use POST para descartar a carga.'],405);
-        $input=mpInput();$cargo=is_array($input['cargo']??null)?$input['cargo']:[];$amounts=['iron'=>max(0,(int)($cargo['Ferro']??0)),'nickel'=>max(0,(int)($cargo['Niquel']??0)),'cobalt'=>max(0,(int)($cargo['Cobalto']??0))];
+        $input=mpInput();$cargo=is_array($input['cargo']??null)?$input['cargo']:[];$amounts=['iron'=>max(0,(int)($cargo['Ferro']??0)),'nickel'=>max(0,(int)($cargo['Niquel']??0)),'cobalt'=>max(0,(int)($cargo['Cobalto']??0))];$position=is_array($input['position']??null)?$input['position']:[];$dropX=isset($position['x'])?(float)$position['x']:null;$dropZ=isset($position['z'])?(float)$position['z']:null;
         if(array_sum($amounts)<1)mpResponse(['error'=>'Escolha ao menos 1 kg de minÃ©rio para descartar.'],400);
         $pdo->beginTransaction();$shipQuery=$pdo->prepare('SELECT id,pos_x,pos_z,hull_hp,docked_station_id,iron_kg,nickel_kg,cobalt_kg FROM ships WHERE user_id=? AND is_active=1 LIMIT 1 FOR UPDATE');$shipQuery->execute([$userId]);$ship=$shipQuery->fetch(PDO::FETCH_ASSOC);
         if(!$ship||(int)$ship['hull_hp']<1){$pdo->rollBack();mpResponse(['error'=>'Sua nave precisa estar operacional para liberar carga.'],409);}
         if($ship['docked_station_id']!==null){$pdo->rollBack();mpResponse(['error'=>'Desacople a nave antes de descartar carga no espaÃ§o.'],409);}
         foreach(['iron'=>'iron_kg','nickel'=>'nickel_kg','cobalt'=>'cobalt_kg'] as $key=>$column)if($amounts[$key]>(int)$ship[$column]){$pdo->rollBack();mpResponse(['error'=>'A quantidade escolhida excede o minÃ©rio disponÃ­vel no compartimento.'],409);}
+        if($dropX!==null&&$dropZ!==null&&hypot($dropX-(float)$ship['pos_x'],$dropZ-(float)$ship['pos_z'])>30000){$pdo->rollBack();mpResponse(['error'=>'Escolha um ponto mais próximo da nave para liberar o contêiner.'],409);}
+        $dropX=$dropX??(float)$ship['pos_x'];$dropZ=$dropZ??(float)$ship['pos_z'];
         $pdo->prepare('UPDATE ships SET iron_kg=iron_kg-?,nickel_kg=nickel_kg-?,cobalt_kg=cobalt_kg-? WHERE id=?')->execute([$amounts['iron'],$amounts['nickel'],$amounts['cobalt'],(int)$ship['id']]);
-        $pdo->prepare("INSERT INTO ship_wrecks(destroyed_ship_id,owner_user_id,pos_x,pos_z,iron_kg,nickel_kg,cobalt_kg,energy_units,drop_type,expires_at) VALUES(NULL,?,?,?,?,?,?,0,'jettison',DATE_ADD(NOW(),INTERVAL 1 HOUR))")->execute([$userId,(float)$ship['pos_x'],(float)$ship['pos_z'],$amounts['iron'],$amounts['nickel'],$amounts['cobalt']]);$dropId=(int)$pdo->lastInsertId();$pdo->commit();
-        mpResponse(['ok'=>true,'drop_id'=>$dropId,'cargo'=>['Ferro'=>$amounts['iron'],'Niquel'=>$amounts['nickel'],'Cobalto'=>$amounts['cobalt']],'expiresIn'=>3600]);
+        $pdo->prepare("INSERT INTO ship_wrecks(destroyed_ship_id,owner_user_id,pos_x,pos_z,iron_kg,nickel_kg,cobalt_kg,energy_units,drop_type,expires_at) VALUES(NULL,?,?,?,?,?,?,0,'jettison',DATE_ADD(NOW(),INTERVAL 24 HOUR))")->execute([$userId,$dropX,$dropZ,$amounts['iron'],$amounts['nickel'],$amounts['cobalt']]);$dropId=(int)$pdo->lastInsertId();$pdo->commit();
+        mpResponse(['ok'=>true,'drop_id'=>$dropId,'cargo'=>['Ferro'=>$amounts['iron'],'Niquel'=>$amounts['nickel'],'Cobalto'=>$amounts['cobalt']],'expiresIn'=>86400,'position'=>['x'=>$dropX,'z'=>$dropZ]]);
     }
 
     if ($action === 'combat-world') {

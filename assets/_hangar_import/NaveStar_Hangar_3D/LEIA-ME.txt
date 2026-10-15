@@ -1,0 +1,36 @@
+NAVESTAR — HANGAR DE NAVES 3D
+====================================
+
+Instalação no XAMPP (Windows):
+1) Copie a pasta NaveStar_Hangar_3D para C:\xampp\htdocs\
+2) Inicie o Apache no painel do XAMPP.
+3) Acesse http://localhost/NaveStar_Hangar_3D/
+
+Conteúdo do pacote:
+- index.html     => página completa do hangar
+- estilos.css    => aparência responsiva da interface
+- naves3d.js     => engine WebGL2 nativa + 10 modelos 3D procedurais
+- assets/        => miniaturas ilustrativas feitas da prancha de referência
+
+FUNCIONALIDADES
+- Dez modelos 3D distintos, com formatos, asas, materiais, janelas, motores e equipamentos.
+- Giro com mouse (arrastar), zoom com roda, vistas frontal/lateral/superior.
+- Rotação automática, próxima/anterior, atalhos ← → e R.
+- Nave selecionada muda imediatamente e exibe características.
+- Suporte a monitores e celulares.
+- Funciona offline sem dependências JavaScript externas (WebGL2 no navegador).
+- Sem dependências externas de JavaScript, CSS ou fontes.
+
+INTEGRAÇÃO COM O JOGO EXISTENTE
+- window.NaveStarHangar.openShip(0 ... 9)  escolhe o modelo
+- window.NaveStarHangar.setView('front' | 'side' | 'top' | 'reset')
+- window.NaveStarHangar.getShipInfo(indice) devolve dados do modelo
+- Inserir a página como rota ou iframe no projeto PHP.
+
+NOTAS IMPORTANTES
+- São modelos tridimensionais procedurais originais inspirados nas naves
+  da ilustração. Não são reconstruções fotogramétricas nem cópias CAD.
+- As miniaturas são imagens conceptuais 2D, e a nave central é 3D WebGL.
+- Estatísticas são dados fictícios da mecânica do jogo, ajustáveis no JS.
+- Para renderização 3D, mantenha aceleração de hardware/WebGL2 ligada.
+- Este pacote não sobrescreve nem altera arquivos existentes do jogo.

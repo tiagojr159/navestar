@@ -148,7 +148,7 @@
   function syncFullscreenButton() { const active=Boolean(document.fullscreenElement); fullscreenToggle.classList.toggle('active',active); fullscreenToggle.setAttribute('aria-label',active?'Sair da tela cheia':'Entrar em tela cheia'); }
   fullscreenToggle.addEventListener('click', async event => { event.preventDefault(); try { if(document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen({navigationUI:'hide'}); } catch {} syncFullscreenButton(); });
   document.addEventListener('fullscreenchange',syncFullscreenButton);
-  menu.addEventListener('click', event => { if (event.target.closest('.mc-icon') && !event.target.closest('[data-station-panel]')) setMenuOpen(false); });
+  menu.addEventListener('click', event => { if (event.target.closest('.mc-icon') && !event.target.closest('[data-station-panel]') && !event.target.closest('[data-station-action="av"]')) setMenuOpen(false); });
   const pop = ui.querySelector('#mcPop');
   const panelSlots = {};
   function setMenuTabActive(button, active) {

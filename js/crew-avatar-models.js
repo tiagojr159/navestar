@@ -1,4 +1,4 @@
-﻿/**
+/**
  * NAVESTAR 3D — PACOTE INTEGRADO DE ALTA QUALIDADE
  * Modelo anterior original INTEIRO mantido: avatares 01–10, retratos, IDs e métodos.
  * O personagem 08 / Comunicações é substituído por um modelo 3D detalhado PBR.
@@ -21,7 +21,7 @@
     {id:'navigator',name:'Navegadora',role:'Mapas e trajetórias',type:'female',species:'human',skin:0xe3b092,hair:0x5b341e,body:0xda8f39,secondary:0x2b3139,pants:0x4d3a27,trim:0xffc16d,accent:0x86e2ff},
     {id:'scientist',name:'Cientista',role:'Pesquisa orbital',type:'male',species:'human',skin:0x93684e,hair:0x1f1816,body:0x7e5b43,secondary:0x2f2c31,pants:0x413730,trim:0x56cbff,accent:0xf1bf68},
     {id:'comms',name:'Comunicações',role:'Operação de sinais',type:'female',species:'augmented',skin:0x8f75d8,hair:0x34164f,body:0x4f2d77,secondary:0x29183b,pants:0x24162d,trim:0xab66ff,accent:0x73ddff},
-    {id:'mechanic',name:'Mecânico',role:'Manutenção pesada',type:'male',species:'human',skin:0xc08d68,hair:0x141416,body:0x253741,secondary:0x131c21,pants:0x172127,trim:0x4df67d,accent:0x97ffb7},
+    {id:'mechanic',name:'Mecânico',role:'Manutenção pesada',type:'male',species:'alien',skin:0x6d92c4,hair:0x3d4c63,body:0xc89a45,secondary:0x3e4149,pants:0x80623e,trim:0xf0ae4f,accent:0x97ffb7},
     {id:'cadet',name:'Cadete',role:'Treinamento espacial',type:'male',species:'reptilian',skin:0x908d93,hair:0x6d4a3c,body:0x302b31,secondary:0x181419,pants:0x1f1a21,trim:0xff5d4f,accent:0xff9368}
   ];
 
