@@ -6,7 +6,8 @@ session_start();
 require_once __DIR__ . '/database/connection.php';
 
 if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-$mode = in_array((string)($_GET['mode'] ?? 'login'), ['login','register','forgot','reset'], true) ? (string)$_GET['mode'] : 'login';
+$requestedMode = (string)($_GET['mode'] ?? 'login');
+$mode = in_array($requestedMode, ['login','register','forgot','reset'], true) ? $requestedMode : 'login';
 $error = '';
 $success = '';
 $starterShips = [
@@ -30,7 +31,8 @@ if (isset($_GET['logout']) && !empty($_SESSION['user_id'])) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $mode = in_array((string)($_POST['mode'] ?? ''), ['login','register','forgot','reset'], true) ? (string)$_POST['mode'] : 'login';
+    $requestedMode = (string)($_POST['mode'] ?? 'login');
+    $mode = in_array($requestedMode, ['login','register','forgot','reset'], true) ? $requestedMode : 'login';
     if (!hash_equals($_SESSION['csrf_token'], (string)($_POST['csrf_token'] ?? ''))) {
         $error = 'A sessão do formulário expirou. Atualize a página e tente novamente.';
     } else {
@@ -181,7 +183,7 @@ function h(string $value): string { return htmlspecialchars($value, ENT_QUOTES |
   <script src="ship-catalog.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
-    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:22px;background:radial-gradient(ellipse at 78% 28%,rgba(15,92,116,.25),transparent 38%),radial-gradient(ellipse at 10% 90%,rgba(36,61,111,.22),transparent 34%),#020711;color:#e8f7fa;font-family:'Barlow Condensed',sans-serif}.login-shell{width:min(440px,100%);padding:34px;background:linear-gradient(145deg,rgba(9,27,40,.97),rgba(4,14,24,.97));border:1px solid rgba(111,211,224,.3);box-shadow:0 30px 100px rgba(0,0,0,.4)}.brand{font-weight:700;font-size:17px;letter-spacing:.28em}.brand span{color:#71e7f3}.eyebrow{margin-top:32px;color:#78afbd;font:9px 'Space Mono';letter-spacing:.2em}.title{margin:7px 0 5px;font-size:34px;font-weight:600}.intro{margin:0 0 25px;color:#9ab5bd;font-size:15px}.tabs{display:flex;gap:18px;margin-bottom:20px;border-bottom:1px solid rgba(117,193,207,.17)}.tabs a{padding:0 0 10px;color:#7797a2;text-decoration:none;font:9px 'Space Mono';letter-spacing:.12em}.tabs a.active{color:#87edf1;border-bottom:1px solid #71e7f3}.field{display:block;margin:14px 0}.field span{display:block;margin-bottom:6px;color:#9bbac2;font:9px 'Space Mono';letter-spacing:.1em}.field input{width:100%;padding:12px 13px;outline:0;background:#06131e;border:1px solid rgba(115,187,200,.25);color:#eaf8fb;font:14px 'Barlow Condensed',sans-serif}.field input:focus{border-color:#71e7f3}.submit{width:100%;margin-top:7px;padding:13px;border:1px solid rgba(110,224,230,.62);background:linear-gradient(100deg,rgba(36,123,140,.4),rgba(22,57,83,.58));color:#c9ffff;font:10px 'Space Mono';letter-spacing:.1em;cursor:pointer}.submit:hover{background:rgba(46,144,158,.45)}.message{margin:0 0 16px;padding:11px 12px;border:1px solid rgba(247,152,120,.34);background:rgba(110,38,34,.16);color:#ffc3a5;font-size:14px}.note{margin:19px 0 0;color:#65848f;font:8px 'Space Mono';line-height:1.8}.back{display:inline-block;margin-top:19px;color:#82b5c0;text-decoration:none;font:9px 'Space Mono'}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:16px;background:radial-gradient(ellipse at 78% 28%,rgba(15,92,116,.25),transparent 38%),radial-gradient(ellipse at 10% 90%,rgba(36,61,111,.22),transparent 34%),#020711;color:#e8f7fa;font-family:'Barlow Condensed',sans-serif}.login-shell{width:min(420px,100%);padding:26px;background:linear-gradient(145deg,rgba(9,27,40,.97),rgba(4,14,24,.97));border:1px solid rgba(111,211,224,.3);box-shadow:0 30px 100px rgba(0,0,0,.4)}.brand{font-weight:700;font-size:15px;letter-spacing:.22em}.brand span{color:#71e7f3}.eyebrow{display:none}.title{margin:18px 0 12px;font-size:30px;line-height:1.05;font-weight:600}.intro{display:none}.tabs{display:flex;gap:18px;margin-bottom:14px;border-bottom:1px solid rgba(117,193,207,.17)}.tabs a{padding:0 0 8px;color:#7797a2;text-decoration:none;font:9px 'Space Mono';letter-spacing:.12em}.tabs a.active{color:#87edf1;border-bottom:1px solid #71e7f3}.field{display:block;margin:11px 0}.field span{display:block;margin-bottom:5px;color:#9bbac2;font:9px 'Space Mono';letter-spacing:.1em}.field input{width:100%;padding:11px 12px;outline:0;background:#06131e;border:1px solid rgba(115,187,200,.25);color:#eaf8fb;font:14px 'Barlow Condensed',sans-serif}.field input:focus{border-color:#71e7f3}.submit{width:100%;margin-top:6px;padding:12px;border:1px solid rgba(110,224,230,.62);background:linear-gradient(100deg,rgba(36,123,140,.4),rgba(22,57,83,.58));color:#c9ffff;font:10px 'Space Mono';letter-spacing:.1em;cursor:pointer}.submit:hover{background:rgba(46,144,158,.45)}.message{margin:0 0 12px;padding:9px 11px;border:1px solid rgba(247,152,120,.34);background:rgba(110,38,34,.16);color:#ffc3a5;font-size:14px}.note{display:none}.back{display:inline-block;margin-top:14px;color:#82b5c0;text-decoration:none;font:9px 'Space Mono'}
   </style>
   <style>
     .login-shell.register-shell{width:min(980px,100%);padding:clamp(20px,4vw,38px)}
@@ -214,8 +216,7 @@ function h(string $value): string { return htmlspecialchars($value, ENT_QUOTES |
 <body>
   <main class="login-shell <?= $mode === 'register' ? 'register-shell' : '' ?>">
     <div class="brand">N<span>A</span>VE <span style="color:#7399a8;font-size:9px;letter-spacing:.15em">DEEP SPACE / 01</span></div>
-    <div class="eyebrow">IDENTIFICAÇÃO DE TRIPULAÇÃO</div>
-    <h1 class="title"><?= $mode === 'register' ? 'Criar conta de piloto' : ($mode === 'forgot' ? 'Recuperar acesso' : ($mode === 'reset' ? 'Criar nova senha' : 'Acessar o multiplayer')) ?></h1>
+    <h1 class="title"><?= $mode === 'register' ? 'Criar conta' : ($mode === 'forgot' ? 'Recuperar acesso' : ($mode === 'reset' ? 'Nova senha' : 'Entrar')) ?></h1>
     <p class="intro"><?= $mode === 'register' ? 'Escolha sua nave de partida e informe um e-mail válido para manter sua conta segura.' : ($mode === 'forgot' ? 'Informe o e-mail cadastrado para receber seu login e um link seguro de recuperação.' : ($mode === 'reset' ? 'Escolha uma senha nova para sua conta de piloto.' : 'Entre no setor e encontre outras naves online.')) ?></p>
     <nav class="tabs"><a class="<?= $mode === 'login' ? 'active' : '' ?>" href="login.php">ENTRAR</a><a class="<?= $mode === 'register' ? 'active' : '' ?>" href="login.php?mode=register">CRIAR CONTA</a></nav>
     <?php if ($error !== ''): ?><p class="message" role="alert"><?= h($error) ?></p><?php endif; ?>
@@ -236,9 +237,9 @@ function h(string $value): string { return htmlspecialchars($value, ENT_QUOTES |
       <?php endif; ?>
       <button class="submit <?= $mode === 'register' ? 'register-submit' : '' ?>" type="submit"><?= $mode === 'register' ? 'CRIAR CONTA E LANÇAR NAVE' : ($mode === 'forgot' ? 'ENVIAR DADOS DE ACESSO' : ($mode === 'reset' ? 'SALVAR NOVA SENHA' : 'ENTRAR NO SETOR')) ?> →</button>
     </form>
-    <p class="note <?= $mode === 'register' ? 'register-note' : '' ?>">Cada conta possui uma nave e posição próprias. Enquanto você estiver conectado, outras pessoas no multiplayer poderão ver sua nave.</p>
+    <?php if ($mode === 'register'): ?><p class="note register-note">Cada conta possui uma nave e posição próprias. Enquanto você estiver conectado, outras pessoas no multiplayer poderão ver sua nave.</p><?php endif; ?>
     <?php if ($mode === 'login'): ?><a class="back" href="login.php?mode=forgot">ESQUECI MINHA SENHA</a><br><?php endif; ?>
-    <?php if ($mode === 'forgot' || $mode === 'reset'): ?><a class="back" href="login.php">← VOLTAR AO LOGIN</a><?php else: ?><a class="back" href="<?= !empty($_SESSION['user_id']) ? 'index.php' : 'login.php' ?>"><?= !empty($_SESSION['user_id']) ? '← VOLTAR AO JOGO' : 'Acesso restrito a pilotos cadastrados' ?></a><?php endif; ?>
+    <?php if ($mode === 'forgot' || $mode === 'reset'): ?><a class="back" href="login.php">← VOLTAR AO LOGIN</a><?php elseif (!empty($_SESSION['user_id'])): ?><a class="back" href="index.php">← VOLTAR AO JOGO</a><?php endif; ?>
   </main>
   <?php if ($mode === 'register'): ?><script>
   (()=>{const catalog=window.shipCatalog,grid=document.querySelector('#starterShipChoices'),field=document.querySelector('#shipModel');if(!catalog||!grid||!field)return;for(const card of grid.querySelectorAll('[data-model]')){const model=card.dataset.model,spec=catalog[model];if(!spec)continue;card.style.setProperty('--ship-accent',spec.accent);card.querySelector('.ship-choice-art').innerHTML=window.shipArt(model);card.querySelector('.ship-choice-tag').textContent=spec.tag;card.querySelector('.ship-choice-title').textContent=spec.name;card.querySelector('.ship-choice-desc').textContent=spec.summary;card.querySelector('.ship-choice-specs').innerHTML=`<i>${spec.cargo.toLocaleString('pt-BR')} KG CARGA</i><i>${spec.fuel.toLocaleString('pt-BR')} U COMBUSTÍVEL</i><i>CASCO ${spec.hull}</i>`}grid.addEventListener('click',event=>{const card=event.target.closest('[data-model]');if(!card)return;field.value=card.dataset.model;grid.querySelectorAll('[data-model]').forEach(item=>{const chosen=item===card;item.classList.toggle('selected',chosen);item.setAttribute('aria-pressed',String(chosen))})})})();

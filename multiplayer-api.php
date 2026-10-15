@@ -570,6 +570,20 @@ try {
         mpResponse(['ok' => true]);
     }
 
+    if ($action === 'asteroid-impact') {
+        if ($_SERVER['REQUEST_METHOD']!=='POST') mpResponse(['error'=>'Use POST para registrar impacto.'],405);
+        $input=mpInput(); $asteroidId=(string)($input['asteroid']??'');
+        if (!preg_match('/^asteroide_\d{3}$/',$asteroidId)) mpResponse(['error'=>'Asteroide inválido.'],400);
+        $pdo->beginTransaction();
+        $shipQuery=$pdo->prepare('SELECT id,pos_x,pos_z,hull_hp,docked_station_id FROM ships WHERE user_id=? AND is_active=1 LIMIT 1 FOR UPDATE'); $shipQuery->execute([$userId]); $ship=$shipQuery->fetch(PDO::FETCH_ASSOC);
+        if (!$ship || (int)$ship['hull_hp']<1 || $ship['docked_station_id']!==null) { $pdo->rollBack(); mpResponse(['error'=>'Nave indisponível para receber impacto.'],409); }
+        $shipId=(int)$ship['id']; $last=(int)($_SESSION['asteroid_impact_at'][$shipId]??0);
+        if (time()-$last<2) { $pdo->rollBack(); mpResponse(['hull'=>(int)$ship['hull_hp'],'cooldown'=>true]); }
+        $_SESSION['asteroid_impact_at'][$shipId]=time(); $hull=max(0,(int)$ship['hull_hp']-8);
+        $pdo->prepare('UPDATE ships SET hull_hp=?,speed=0 WHERE id=?')->execute([$hull,$shipId]); $pdo->commit();
+        mpResponse(['ok'=>true,'hull'=>$hull,'damage'=>8,'destroyed'=>$hull===0]);
+    }
+
     if ($action === 'cargo-jettison') {
         if ($_SERVER['REQUEST_METHOD']!=='POST') mpResponse(['error'=>'Use POST para descartar a carga.'],405);
         $input=mpInput();$cargo=is_array($input['cargo']??null)?$input['cargo']:[];$amounts=['iron'=>max(0,(int)($cargo['Ferro']??0)),'nickel'=>max(0,(int)($cargo['Niquel']??0)),'cobalt'=>max(0,(int)($cargo['Cobalto']??0))];
@@ -1073,6 +1087,28 @@ try {
         $fuelQuery=$pdo->prepare('SELECT fuel_units FROM ships WHERE id=?'); $fuelQuery->execute([(int)$ship['id']]);
         $balanceQuery=$pdo->prepare('SELECT credits FROM users WHERE id=?'); $balanceQuery->execute([$userId]);
         mpResponse(['ok'=>true,'station'=>$station['name'],'purchased'=>$quantity,'cost'=>$cost,'fuel'=>(float)$fuelQuery->fetchColumn(),'fuelCapacity'=>(int)$ship['fuel_capacity_units'],'credits'=>(int)$balanceQuery->fetchColumn()]);
+    }
+
+    if ($action === 'station-repair') {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error'=>'Use POST para reparar o casco.'],405);
+        $input=mpInput(); $stationCode=strtolower(trim((string)($input['station']??'')));
+        if (!preg_match('/^[a-z0-9_-]{2,40}$/',$stationCode)) mpResponse(['error'=>'Estação inválida.'],400);
+        $stationQuery=$pdo->prepare('SELECT id,name,pos_x,pos_z,hull_hp FROM space_stations WHERE code=? AND is_active=1 LIMIT 1'); $stationQuery->execute([$stationCode]); $station=$stationQuery->fetch(PDO::FETCH_ASSOC);
+        if (!$station || (int)$station['hull_hp']<1) mpResponse(['error'=>'Estação indisponível para reparo.'],409);
+        $pdo->beginTransaction();
+        $shipQuery=$pdo->prepare('SELECT id,pos_x,pos_z,hull_hp,ship_class FROM ships WHERE user_id=? AND is_active=1 LIMIT 1 FOR UPDATE'); $shipQuery->execute([$userId]); $ship=$shipQuery->fetch(PDO::FETCH_ASSOC);
+        if (!$ship || (int)$ship['hull_hp']<1) { $pdo->rollBack(); mpResponse(['error'=>'Sua nave precisa estar operacional para reparo.'],409); }
+        if (hypot((float)$ship['pos_x']-(float)$station['pos_x'],(float)$ship['pos_z']-(float)$station['pos_z'])>2200) { $pdo->rollBack(); mpResponse(['error'=>'Aproxime-se a até 2.200 km para reparar.'],409); }
+        $maxHull=['attack'=>180,'freighter'=>170][$ship['ship_class']]??100; $hull=(int)$ship['hull_hp'];
+        if ($hull >= $maxHull) { $pdo->rollBack(); mpResponse(['error'=>'O casco já está íntegro.'],409); }
+        $walletQuery=$pdo->prepare('SELECT credits FROM users WHERE id=? FOR UPDATE'); $walletQuery->execute([$userId]); $credits=(int)$walletQuery->fetchColumn();
+        if ($credits<40) { $pdo->rollBack(); mpResponse(['error'=>'O kit de reparo custa 40 CR.'],409); }
+        $repaired=min(25,$maxHull-$hull); $hull+=$repaired;
+        $pdo->prepare('UPDATE ships SET hull_hp=? WHERE id=?')->execute([$hull,(int)$ship['id']]);
+        $pdo->prepare('UPDATE users SET credits=credits-40 WHERE id=?')->execute([$userId]);
+        $pdo->commit();
+        $balanceQuery=$pdo->prepare('SELECT credits FROM users WHERE id=?'); $balanceQuery->execute([$userId]);
+        mpResponse(['ok'=>true,'hull'=>$hull,'repaired'=>$repaired,'credits'=>(int)$balanceQuery->fetchColumn()]);
     }
 
     if ($action === 'station-sale') {
