@@ -16,10 +16,12 @@ CREATE TABLE IF NOT EXISTS ship_wrecks (
   cobalt_kg INT UNSIGNED NOT NULL DEFAULT 0,
   energy_units INT UNSIGNED NOT NULL DEFAULT 0,
   claimed_by BIGINT UNSIGNED NULL DEFAULT NULL,
+  destroyed_by_user_id BIGINT UNSIGNED NULL DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY ix_ship_wreck_position (pos_x,pos_z,created_at),
   KEY ix_ship_wreck_owner (owner_user_id,created_at),
+  KEY ix_ship_wreck_destroyed_by (destroyed_by_user_id),
   CONSTRAINT fk_ship_wreck_ship FOREIGN KEY (destroyed_ship_id) REFERENCES ships(id) ON DELETE CASCADE,
   CONSTRAINT fk_ship_wreck_owner FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_ship_wreck_claimed_by FOREIGN KEY (claimed_by) REFERENCES users(id) ON DELETE SET NULL

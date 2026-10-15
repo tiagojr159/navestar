@@ -112,7 +112,7 @@
     </nav>
     <div class="mc-pop" id="mcPop" aria-live="polite"></div>
     <div class="mc-context" id="mcContext">
-      <button data-click="#orbit">◉ ÓRBITA</button><button data-context-action="dock" data-click="#dockButton">⚓ ACOPLAR</button><button data-click="#stationMarketButton">◇ MERCADO</button><button data-click="#stationAttackButton">✦ ATACAR ESTAÇÃO</button>
+      <button data-click="#orbit">◉ ÓRBITA</button><button data-context-action="dock" data-click="#dockButton">⚓ ACOPLAR</button><button data-context-action="enter-station" data-click="#dockButton" hidden>↗ ENTRAR NA ESTAÇÃO</button><button data-click="#stationMarketButton">◇ MERCADO</button><button data-click="#stationAttackButton">✦ ATACAR ESTAÇÃO</button>
     </div>
     <div class="mc-directions" aria-label="Direcionais da nave"><button type="button" data-hold="w" aria-label="Avançar">▲</button><button type="button" data-hold="a" aria-label="Virar para esquerda">◀</button><button type="button" data-hold="s" aria-label="Recuar">▼</button><button type="button" data-hold="d" aria-label="Virar para direita">▶</button></div>
     <div class="mc-joystick" id="mcJoystick" aria-label="Joystick de direção"><div class="mc-stick"></div><small class="mc-stick-legend">W A S D</small></div>
@@ -374,6 +374,7 @@
   ui.querySelector('[data-action="autopilot"]')?.addEventListener('click',()=>document.querySelector('#routeGo')?.click());
   ['pointerup','pointercancel','lostpointercapture'].forEach(type => ui.querySelector('#mcFire').addEventListener(type,event=>event.currentTarget.classList.remove('pressed')));
   ui.querySelectorAll('[data-click]').forEach(button => button.addEventListener('click', () => document.querySelector(button.dataset.click)?.click()));
+  ui.querySelector('#mcContext [data-context-action="enter-station"]')?.addEventListener('click',()=>setMenuOpen(false));
   ui.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => {
     const action=button.dataset.action;
     if(action==='autopilot'){ document.querySelector('#routeGo')?.click(); return; }
@@ -440,6 +441,8 @@
     const orbit=document.querySelector('#orbit');
     const docked=Boolean(window.crewDocked),contextDock=ui.querySelector('#mcContext [data-context-action="dock"]');
     if(contextDock){contextDock.dataset.click=docked?'#crewUndock':'#dockButton';contextDock.textContent=docked?'⏏ DESACOPLAR':'⚓ ACOPLAR';contextDock.setAttribute('aria-label',docked?'Desacoplar da estação':'Acoplar à estação');contextDock.title=docked?'Desacoplar da estação':'Acoplar à estação';contextDock.disabled=docked?(!window.crewCanUndock||window.crewRole!=='pilot'):(!dockButton||dockButton.disabled)}
+    const enterStation=ui.querySelector('[data-context-action="enter-station"]');
+    if(enterStation){enterStation.hidden=!docked;enterStation.disabled=!dockButton||dockButton.disabled;}
     const nearStation=docked||Boolean(stationButton&&!stationButton.disabled||dockButton&&!dockButton.disabled||attack&&!attack.disabled);
     const stationOrCabinView=Boolean(document.querySelector('#stationScreen.open,.crew-interior.open,.passenger-cabin.open'));
     ui.querySelector('#mcContext').classList.toggle('visible',nearStation&&!stationOrCabinView);

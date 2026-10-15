@@ -40,6 +40,11 @@ try {
                 $stmt->execute([$choice, $userId]);
                 $selected = $choice;
                 $saved = true;
+                if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest') {
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(['ok' => true, 'avatar' => $choice], JSON_UNESCAPED_UNICODE);
+                    exit;
+                }
             }
         }
     }
@@ -103,6 +108,19 @@ function portrait(a, code){
 }
 const grid=document.querySelector('#avatarGrid');grid.innerHTML=Object.entries(avatars).map(([code,a])=>`<button type="button" class="card ${code===selected?'selected':''}" data-avatar="${esc(code)}" aria-pressed="${code===selected}"><span class="badge">${esc(a.callsign)}</span><span class="check">✓</span><span class="portrait">${portrait(a,code)}</span><span class="card-meta"><strong>${esc(a.name)}</strong><small>${esc(a.role.toUpperCase())}</small></span></button>`).join('');
 function selectAvatar(code){if(!avatars[code])return;selected=code;document.querySelector('#avatarCode').value=code;const a=avatars[code];document.querySelectorAll('.card').forEach(card=>{const active=card.dataset.avatar===code;card.classList.toggle('selected',active);card.setAttribute('aria-pressed',String(active))});document.querySelector('#previewImage').src=portraits[code];document.querySelector('#previewImage').alt='Retrato cinematográfico de '+a.name;document.querySelector('#previewName').textContent=a.name;document.querySelector('#previewRole').textContent=a.role.toUpperCase();document.querySelector('#previewBio').textContent=a.bio;document.querySelector('#previewCallsign').textContent=a.callsign;document.querySelector('#previewGender').textContent=a.gender}
-grid.addEventListener('click',event=>{const card=event.target.closest('[data-avatar]');if(card)selectAvatar(card.dataset.avatar)});selectAvatar(selected);
+const form=document.querySelector('#avatarForm'),submitButton=form.querySelector('.submit');
+async function saveSelectedAvatar(){
+  submitButton.disabled=true;submitButton.textContent='SALVANDO AVATAR…';
+  try{
+    const response=await fetch(form.action||location.href,{method:'POST',body:new FormData(form),headers:{'X-Requested-With':'XMLHttpRequest','Accept':'application/json'},credentials:'same-origin'});
+    const result=await response.json();
+    if(!response.ok||!result.ok)throw new Error(result.error||'Não foi possível salvar o personagem.');
+    const message=document.querySelector('.message');
+    if(message){message.className='message ok';message.setAttribute('role','status');message.textContent='Personagem salvo. Ele já aparece no multiplayer.'}
+    else{const note=document.createElement('div');note.className='message ok';note.setAttribute('role','status');note.textContent='Personagem salvo. Ele já aparece no multiplayer.';form.before(note)}
+  }catch(error){submitButton.textContent='TENTAR SALVAR AVATAR';const message=document.querySelector('.message')||document.createElement('div');message.className='message';message.setAttribute('role','alert');message.textContent=error.message;if(!message.isConnected)form.before(message)}
+  finally{submitButton.disabled=false;if(submitButton.textContent==='SALVANDO AVATAR…')submitButton.innerHTML='CONFIRMAR AVATAR <span>→</span>'}
+}
+grid.addEventListener('click',event=>{const card=event.target.closest('[data-avatar]');if(card){selectAvatar(card.dataset.avatar);saveSelectedAvatar()}});selectAvatar(selected);
 </script>
 </body></html>

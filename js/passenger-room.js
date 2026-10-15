@@ -179,6 +179,7 @@ window.createPassengerRoom3D=function(host){
       return g.userData.model;
     }
 
+    function updateNameplate(group,person,height=2.32){let tag=group.userData.nameplate;if(!tag){const canvas=document.createElement('canvas');canvas.width=240;canvas.height=64;const context=canvas.getContext('2d'),texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;const material=new T.SpriteMaterial({map:texture,transparent:true,depthTest:true,depthWrite:false,toneMapped:false});tag=new T.Sprite(material);tag.userData={canvas,context,texture};tag.renderOrder=10;group.add(tag);group.userData.nameplate=tag;}const hostile=Boolean(person.hasPk),armed=Boolean(person.hasWeapons),pk=hostile||armed,name=String(person.name||'PILOTO').trim().slice(0,24),context=tag.userData.context;context.font='12px monospace';const nameWidth=context.measureText(name).width,width=Math.max(88,Math.min(260,Math.ceil(nameWidth+(pk?48:24))));tag.userData.canvas.width=width*2;tag.userData.canvas.height=64;context.setTransform(2,0,0,2,0,0);context.clearRect(0,0,width,32);context.beginPath();context.roundRect(1,1,width-2,30,5);context.fillStyle='rgba(3,15,25,.9)';context.fill();context.lineWidth=1;context.strokeStyle=hostile?'#ff4d5f':armed?'#f5fcff':'#57bed1';context.stroke();context.font='12px monospace';context.textBaseline='middle';context.textAlign='left';context.fillStyle='#e8fbff';context.fillText(name,10,16,Math.max(30,width-(pk?46:18)));if(pk){context.textAlign='right';context.fillStyle=hostile?'#ff4d5f':'#ffffff';context.font='bold 12px monospace';context.fillText('PK',width-9,16);}tag.userData.texture.needsUpdate=true;tag.position.set(0,height,0);tag.scale.set(width/100,.34,1);return tag;}
     const self=new T.Group();room.add(self);skin(self,'captain');
     const pilotAvatar=new T.Group();pilotAvatar.position.set(0,.02,-4.18);room.add(pilotAvatar);pilotAvatar.scale.setScalar(.96);let pilotName='PILOTO';
 
@@ -197,10 +198,10 @@ window.createPassengerRoom3D=function(host){
       pilotName=pData.pilot||'PILOTO';
       drawPilotDisplays(pData);
       skin(pilotAvatar,pData.pilotAvatar||'pilot');
-      pilotAvatar.rotation.y=0;posePilot();
+      pilotAvatar.rotation.y=Math.PI;posePilot();const members=pData.occupants||data.occupants||[],pilotPerson=members.find(person=>Number(person.id)===Number(pData.pilotId));updateNameplate(pilotAvatar,{...(pilotPerson||{}),name:pilotName},2.4);
       const ids=new Set(),seenIds=new Set();const people=pData.occupants||data.occupants||[];const cockpitIds=new Set([Number(pData.pilotId)||0,Number(pData.copilotId)||0].filter(Boolean));otherPlayers.length=0;
-      for(const p of people){const id=Number(p.id),role=String(p.mode||'').toLowerCase();if(!Number.isFinite(id)||id<=0||seenIds.has(id))continue;seenIds.add(id);if(id===Number(data.selfId)){skin(self,p.avatar);if(!initializedYaw){heading=Number(p.roomYaw)||0;self.rotation.y=heading;walkIntent.facing=heading;initializedYaw=true;}continue;}if(cockpitIds.has(id)||role==='pilot'||role==='copilot')continue;
-        ids.add(id);let obj=avatars.get(id);if(!obj){obj=new T.Group();room.add(obj);avatars.set(id,obj);}skin(obj,p.avatar);obj.userData.person=p;
+      for(const p of people){const id=Number(p.id),role=String(p.mode||'').toLowerCase();if(!Number.isFinite(id)||id<=0||seenIds.has(id))continue;seenIds.add(id);if(id===Number(data.selfId)){skin(self,p.avatar);updateNameplate(self,p);if(!initializedYaw){heading=Number(p.roomYaw)||0;self.rotation.y=Math.PI-heading;walkIntent.facing=heading;initializedYaw=true;}continue;}if(cockpitIds.has(id)||role==='pilot'||role==='copilot')continue;
+        ids.add(id);let obj=avatars.get(id);if(!obj){obj=new T.Group();room.add(obj);avatars.set(id,obj);}skin(obj,p.avatar);obj.userData.person=p;updateNameplate(obj,p);
         const point=roomToWorld(p.roomX,p.roomZ);otherPlayers.push({id,x:point.x,z:point.z});obj.userData.destination=new T.Vector3(point.x,0,point.z);obj.userData.heading=Number(p.roomYaw)||0;
       }
       for(const [id,obj] of avatars){if(!ids.has(id)){room.remove(obj);obj.traverse(o=>o.geometry?.dispose?.());avatars.delete(id);}}
@@ -208,10 +209,10 @@ window.createPassengerRoom3D=function(host){
     function setPlayerPosition(x,z){const p=roomToWorld(x,z);if(Math.hypot(self.position.x-p.x,self.position.z-p.z)>.008){prevWalk=performance.now();}self.position.set(p.x,0,p.z);}
     function resize(){const b=host.getBoundingClientRect();const w=Math.max(1,b.width),h=Math.max(1,b.height);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
     function frame(){if(!running)return;raf=requestAnimationFrame(frame);const dt=Math.min(clock.getDelta()||.016,.05);
-      for(const obj of avatars.values()){if(obj.userData.destination)obj.position.lerp(obj.userData.destination,1-Math.exp(-8*dt));obj.rotation.y=obj.userData.heading||0;}
+      for(const obj of avatars.values()){if(obj.userData.destination)obj.position.lerp(obj.userData.destination,1-Math.exp(-8*dt));obj.rotation.y=Math.PI-(obj.userData.heading||0);}
       const avatarModel=self.userData.model,gait=walkIntent.active?1:0,phase=clock.elapsedTime*10;
       if(avatarModel){avatarModel.legs?.forEach(({part,s=0})=>{if(part)part.rotation.x=Math.sin(phase+(s<0?0:Math.PI))*.48*gait;});avatarModel.arms?.forEach(({part,s=0})=>{if(part)part.rotation.x=-Math.sin(phase+(s<0?0:Math.PI))*.24*gait;});if(avatarModel.visual)avatarModel.visual.position.y=Math.abs(Math.sin(phase*2))*.045*gait;}
-      const targetFacing=walkIntent.facing??heading,angle=targetFacing-self.rotation.y;self.rotation.y+=Math.atan2(Math.sin(angle),Math.cos(angle))*(1-Math.exp(-10*dt));
+      const targetFacing=Math.PI-(walkIntent.facing??heading),angle=targetFacing-self.rotation.y;self.rotation.y+=Math.atan2(Math.sin(angle),Math.cos(angle))*(1-Math.exp(-10*dt));
       posePilot();
       const direction=new T.Vector3(Math.sin(heading),0,-Math.cos(heading));const look=self.position.clone().add(new T.Vector3(0,1.35+pitch*.4,0)).addScaledVector(direction,2.2);
       const ideal=self.position.clone().addScaledVector(direction,-5.15);ideal.y=2.8+pitch*2.0;ideal.x=bound(ideal.x,-3.55,3.55);ideal.z=bound(ideal.z,-5.7,5.7);
