@@ -61,8 +61,8 @@ $h = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES, '
     <div class="grid" id="shipGrid"></div>
   </section>
 </main>
-<script src="station-model-renderer.js?v=20261012-stations24"></script><script src="ship-catalog.js"></script>
-<script src="crew-avatar-models.js?v=20261011-catalog1"></script>
+<script src="js/station-model-renderer.js?v=20261012-stations24"></script><script src="js/ship-catalog.js"></script>
+<script src="js/crew-avatar-models.js?v=20261011-catalog1"></script>
 <script>
 (()=>{
   const tabs=[...document.querySelectorAll('[role="tab"][data-screen]')],screens=[...document.querySelectorAll('.screen')];
