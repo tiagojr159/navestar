@@ -6,7 +6,7 @@ session_start();
 require_once __DIR__ . '/database/connection.php';
 
 if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-$mode = ($_GET['mode'] ?? 'login') === 'register' ? 'register' : 'login';
+$mode = in_array((string)($_GET['mode'] ?? 'login'), ['login','register','forgot','reset'], true) ? (string)$_GET['mode'] : 'login';
 $error = '';
 $success = '';
 $starterShips = [
@@ -30,7 +30,7 @@ if (isset($_GET['logout']) && !empty($_SESSION['user_id'])) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $mode = ($_POST['mode'] ?? '') === 'register' ? 'register' : 'login';
+    $mode = in_array((string)($_POST['mode'] ?? ''), ['login','register','forgot','reset'], true) ? (string)$_POST['mode'] : 'login';
     if (!hash_equals($_SESSION['csrf_token'], (string)($_POST['csrf_token'] ?? ''))) {
         $error = 'A sessão do formulário expirou. Atualize a página e tente novamente.';
     } else {
@@ -38,7 +38,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $password = (string)($_POST['password'] ?? '');
         try {
             $pdo = db();
-            if ($mode === 'register') {
+            if ($mode === 'forgot') {
+                $email = strtolower(trim((string)($_POST['email'] ?? '')));
+                if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    $error = 'Digite o e-mail usado no cadastro.';
+                } else {
+                    $pdo->exec("CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, user_id BIGINT UNSIGNED NOT NULL,
+                      token_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, expires_at DATETIME NOT NULL,
+                      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (id),
+                      UNIQUE KEY uq_password_reset_hash (token_hash), KEY ix_password_reset_user (user_id),
+                      CONSTRAINT fk_password_reset_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                    ) ENGINE=InnoDB");
+                    $lookup = $pdo->prepare('SELECT id,username,email FROM users WHERE email=? AND is_active=1 LIMIT 1');
+                    $lookup->execute([$email]);
+                    $account = $lookup->fetch();
+                    if ($account) {
+                        require_once __DIR__ . '/mail-helper.php';
+                        $rawToken = bin2hex(random_bytes(32));
+                        $pdo->prepare('DELETE FROM password_reset_tokens WHERE user_id=?')->execute([(int)$account['id']]);
+                        $pdo->prepare('INSERT INTO password_reset_tokens (user_id,token_hash,expires_at) VALUES (?,?,DATE_ADD(NOW(),INTERVAL 1 HOUR))')->execute([(int)$account['id'], hash('sha256', $rawToken)]);
+                        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+                        $host = preg_replace('/[^A-Za-z0-9.:-]/', '', (string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
+                        $base = rtrim(str_replace('\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? '/login.php'))), '/');
+                        $resetUrl = $scheme . '://' . $host . ($base !== '' ? $base : '') . '/login.php?mode=reset&token=' . rawurlencode($rawToken);
+                        $safeUser = htmlspecialchars((string)$account['username'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                        $safeEmail = htmlspecialchars((string)$account['email'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                        $safeUrl = htmlspecialchars($resetUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                        $body = '<html><body style="font-family:Arial,sans-serif;color:#e8f7fa;background:#06131e;padding:24px"><main style="max-width:560px;margin:auto;padding:24px;background:#0b1e2b;border:1px solid #246375"><h2>Acesso de piloto</h2><p>Ola, <strong>' . $safeUser . '</strong>.</p><p>Seu login e <strong>' . $safeUser . '</strong> e o e-mail cadastrado e <strong>' . $safeEmail . '</strong>.</p><p>Por seguranca, sua senha atual nao e enviada por e-mail. Use o link para criar uma nova senha. O link expira em uma hora e so pode ser usado uma vez.</p><p><a style="display:inline-block;padding:12px 18px;background:#116777;color:#fff;text-decoration:none" href="' . $safeUrl . '">CRIAR NOVA SENHA</a></p><p>Se nao solicitou esta mensagem, ignore este e-mail.</p></main></body></html>';
+                        $sent = gameSendMail($email, 'Acesso à sua conta NAVE', $body);
+                        if (!$sent) {
+                            $pdo->prepare('DELETE FROM password_reset_tokens WHERE token_hash=?')->execute([hash('sha256', $rawToken)]);
+                            $error = 'Não foi possível enviar o e-mail agora. Tente novamente mais tarde.';
+                        }
+                    }
+                    if ($error === '') $success = 'Se houver uma conta ativa com esse e-mail, enviamos o login cadastrado e um link seguro para criar uma nova senha. Verifique sua caixa de entrada e o spam.';
+                }
+            } elseif ($mode === 'reset') {
+                $rawToken = strtolower(trim((string)($_POST['token'] ?? '')));
+                $newPassword = (string)($_POST['new_password'] ?? '');
+                $pdo->exec("CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, user_id BIGINT UNSIGNED NOT NULL,
+                  token_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, expires_at DATETIME NOT NULL,
+                  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (id),
+                  UNIQUE KEY uq_password_reset_hash (token_hash), KEY ix_password_reset_user (user_id),
+                  CONSTRAINT fk_password_reset_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB");
+                $findToken = $pdo->prepare('SELECT id,user_id FROM password_reset_tokens WHERE token_hash=? AND expires_at>NOW() LIMIT 1');
+                $findToken->execute([hash('sha256', $rawToken)]);
+                $reset = $findToken->fetch();
+                if (!preg_match('/^[a-f0-9]{64}$/', $rawToken) || !$reset) {
+                    $error = 'Este link expirou ou ja foi usado. Solicite uma nova recuperacao.';
+                } elseif (strlen($newPassword) < 8) {
+                    $error = 'A nova senha precisa ter pelo menos 8 caracteres.';
+                } else {
+                    $pdo->beginTransaction();
+                    $pdo->prepare('UPDATE users SET password_hash=? WHERE id=?')->execute([password_hash($newPassword, PASSWORD_DEFAULT), (int)$reset['user_id']]);
+                    $pdo->prepare('DELETE FROM password_reset_tokens WHERE user_id=?')->execute([(int)$reset['user_id']]);
+                    $pdo->commit();
+                    $success = 'Senha atualizada. Entre com seu nome de piloto e a nova senha.';
+                    $mode = 'login';
+                }
+            } elseif ($mode === 'register') {
                 $email = strtolower(trim((string)($_POST['email'] ?? '')));
                 $starterModel = (string)($_POST['ship_model'] ?? '');
                 if (!preg_match('/^[A-Za-z0-9_.-]{3,40}$/', $username)) {
@@ -47,12 +108,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error = 'Escolha uma das três naves iniciais disponíveis.';
                 } elseif (strlen($password) < 3) {
                     $error = 'A senha precisa ter pelo menos 3 caracteres.';
-                } elseif ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                     $error = 'Digite um e-mail válido ou deixe o campo vazio.';
                 } else {
                     $pdo->beginTransaction();
                     $insertUser = $pdo->prepare('INSERT INTO users (username,email,password_hash) VALUES (?,?,?)');
-                    $insertUser->execute([$username, $email !== '' ? $email : null, password_hash($password, PASSWORD_DEFAULT)]);
+                    $insertUser->execute([$username, $email, password_hash($password, PASSWORD_DEFAULT)]);
                     $newUserId = (int)$pdo->lastInsertId();
                     $spawnX = random_int(-2500, 2500);
                     $spawnZ = random_int(-2500, 2500);
@@ -154,25 +215,30 @@ function h(string $value): string { return htmlspecialchars($value, ENT_QUOTES |
   <main class="login-shell <?= $mode === 'register' ? 'register-shell' : '' ?>">
     <div class="brand">N<span>A</span>VE <span style="color:#7399a8;font-size:9px;letter-spacing:.15em">DEEP SPACE / 01</span></div>
     <div class="eyebrow">IDENTIFICAÇÃO DE TRIPULAÇÃO</div>
-    <h1 class="title"><?= $mode === 'register' ? 'Criar conta de piloto' : 'Acessar o multiplayer' ?></h1>
-    <p class="intro"><?= $mode === 'register' ? 'Escolha sua nave de partida. Novos cascos estarão à venda no estáleiro conforme você avança pelo setor.' : 'Entre no setor e encontre outras naves online.' ?></p>
+    <h1 class="title"><?= $mode === 'register' ? 'Criar conta de piloto' : ($mode === 'forgot' ? 'Recuperar acesso' : ($mode === 'reset' ? 'Criar nova senha' : 'Acessar o multiplayer')) ?></h1>
+    <p class="intro"><?= $mode === 'register' ? 'Escolha sua nave de partida e informe um e-mail válido para manter sua conta segura.' : ($mode === 'forgot' ? 'Informe o e-mail cadastrado para receber seu login e um link seguro de recuperação.' : ($mode === 'reset' ? 'Escolha uma senha nova para sua conta de piloto.' : 'Entre no setor e encontre outras naves online.')) ?></p>
     <nav class="tabs"><a class="<?= $mode === 'login' ? 'active' : '' ?>" href="login.php">ENTRAR</a><a class="<?= $mode === 'register' ? 'active' : '' ?>" href="login.php?mode=register">CRIAR CONTA</a></nav>
     <?php if ($error !== ''): ?><p class="message" role="alert"><?= h($error) ?></p><?php endif; ?>
-    <form method="post" action="login.php<?= $mode === 'register' ? '?mode=register' : '' ?>" autocomplete="on" class="<?= $mode === 'register' ? 'register-form' : '' ?>">
+    <?php if ($success !== ''): ?><p class="message" role="status" style="border-color:rgba(94,218,175,.4);background:rgba(18,94,68,.18);color:#a4f2d2"><?= h($success) ?></p><?php endif; ?>
+    <form method="post" action="login.php<?= $mode !== 'login' ? '?mode=' . h($mode) : '' ?>" autocomplete="on" class="<?= $mode === 'register' ? 'register-form' : '' ?>">
       <input type="hidden" name="mode" value="<?= h($mode) ?>"><input type="hidden" name="csrf_token" value="<?= h($_SESSION['csrf_token']) ?>">
-      <div class="register-fields"><label class="field"><span>NOME DE PILOTO</span><input name="username" required minlength="3" maxlength="40" pattern="[A-Za-z0-9_.-]{3,40}" autocomplete="username" value="<?= h((string)($_POST['username'] ?? '')) ?>"></label>
-      <?php if ($mode === 'register'): ?><label class="field"><span>E-MAIL · OPCIONAL</span><input type="email" name="email" maxlength="190" autocomplete="email" value="<?= h((string)($_POST['email'] ?? '')) ?>"></label><?php endif; ?>
-      <label class="field"><span>SENHA</span><input type="password" name="password" required minlength="3" autocomplete="<?= $mode === 'register' ? 'new-password' : 'current-password' ?>"></label></div>
+      <div class="register-fields">
+      <?php if ($mode === 'login' || $mode === 'register'): ?><label class="field"><span>NOME DE PILOTO</span><input name="username" required minlength="3" maxlength="40" pattern="[A-Za-z0-9_.-]{3,40}" autocomplete="username" value="<?= h((string)($_POST['username'] ?? '')) ?>"></label><?php endif; ?>
+      <?php if ($mode === 'register' || $mode === 'forgot'): ?><label class="field"><span><?= $mode === 'register' ? 'E-MAIL PARA RECUPERAÇÃO' : 'E-MAIL CADASTRADO' ?></span><input type="email" name="email" required required required maxlength="190" autocomplete="email" value="<?= h((string)($_POST['email'] ?? '')) ?>"></label><?php endif; ?>
+      <?php if ($mode === 'login' || $mode === 'register'): ?><label class="field"><span>SENHA</span><input type="password" name="password" required minlength="3" autocomplete="<?= $mode === 'register' ? 'new-password' : 'current-password' ?>"></label><?php endif; ?>
+      <?php if ($mode === 'reset'): ?><input type="hidden" name="token" value="<?= h((string)($_GET['token'] ?? $_POST['token'] ?? '')) ?>"><label class="field"><span>NOVA SENHA · MÍNIMO 8 CARACTERES</span><input type="password" name="new_password" required minlength="8" autocomplete="new-password"></label><?php endif; ?>
+      </div>
       <?php if ($mode === 'register'): $selectedStarter = isset($starterShips[(string)($_POST['ship_model'] ?? '')]) ? (string)$_POST['ship_model'] : 'explorer'; ?>
       <input type="hidden" name="ship_model" id="shipModel" value="<?= h($selectedStarter) ?>">
       <fieldset class="ship-picker"><legend>ESCOLHA SUA NAVE INICIAL / UMA DE TRÊS</legend><p class="ship-picker-copy">Cada casco tem um perfil diferente. Escolha com qual estilo quer começar.</p><div class="ship-choice-grid" id="starterShipChoices">
         <?php foreach (['explorer','prospector','scout'] as $model): ?><button type="button" class="ship-choice<?= $selectedStarter === $model ? ' selected' : '' ?>" data-model="<?= h($model) ?>" aria-pressed="<?= $selectedStarter === $model ? 'true' : 'false' ?>"><span class="ship-choice-art"></span><span class="ship-choice-tag"></span><strong class="ship-choice-title"></strong><span class="ship-choice-desc"></span><span class="ship-choice-specs"></span><span class="ship-choice-check">✓</span></button><?php endforeach; ?>
       </div></fieldset><p class="starter-pledge">TRÊS NAVES DISPONÍVEIS AGORA · ATLAS E VIPER SERÃO DESBLOQUEADAS NO ESTALEIRO COM OS CRÉDITOS OBTIDOS NAS SUAS ROTAS E MINERAÇÃO.</p>
       <?php endif; ?>
-      <button class="submit <?= $mode === 'register' ? 'register-submit' : '' ?>" type="submit"><?= $mode === 'register' ? 'CRIAR CONTA E LANÇAR NAVE' : 'ENTRAR NO SETOR' ?> →</button>
+      <button class="submit <?= $mode === 'register' ? 'register-submit' : '' ?>" type="submit"><?= $mode === 'register' ? 'CRIAR CONTA E LANÇAR NAVE' : ($mode === 'forgot' ? 'ENVIAR DADOS DE ACESSO' : ($mode === 'reset' ? 'SALVAR NOVA SENHA' : 'ENTRAR NO SETOR')) ?> →</button>
     </form>
     <p class="note <?= $mode === 'register' ? 'register-note' : '' ?>">Cada conta possui uma nave e posição próprias. Enquanto você estiver conectado, outras pessoas no multiplayer poderão ver sua nave.</p>
-    <a class="back" href="index.php">← VOLTAR AO JOGO</a>
+    <?php if ($mode === 'login'): ?><a class="back" href="login.php?mode=forgot">ESQUECI MINHA SENHA</a><br><?php endif; ?>
+    <?php if ($mode === 'forgot' || $mode === 'reset'): ?><a class="back" href="login.php">← VOLTAR AO LOGIN</a><?php else: ?><a class="back" href="<?= !empty($_SESSION['user_id']) ? 'index.php' : 'login.php' ?>"><?= !empty($_SESSION['user_id']) ? '← VOLTAR AO JOGO' : 'Acesso restrito a pilotos cadastrados' ?></a><?php endif; ?>
   </main>
   <?php if ($mode === 'register'): ?><script>
   (()=>{const catalog=window.shipCatalog,grid=document.querySelector('#starterShipChoices'),field=document.querySelector('#shipModel');if(!catalog||!grid||!field)return;for(const card of grid.querySelectorAll('[data-model]')){const model=card.dataset.model,spec=catalog[model];if(!spec)continue;card.style.setProperty('--ship-accent',spec.accent);card.querySelector('.ship-choice-art').innerHTML=window.shipArt(model);card.querySelector('.ship-choice-tag').textContent=spec.tag;card.querySelector('.ship-choice-title').textContent=spec.name;card.querySelector('.ship-choice-desc').textContent=spec.summary;card.querySelector('.ship-choice-specs').innerHTML=`<i>${spec.cargo.toLocaleString('pt-BR')} KG CARGA</i><i>${spec.fuel.toLocaleString('pt-BR')} U COMBUSTÍVEL</i><i>CASCO ${spec.hull}</i>`}grid.addEventListener('click',event=>{const card=event.target.closest('[data-model]');if(!card)return;field.value=card.dataset.model;grid.querySelectorAll('[data-model]').forEach(item=>{const chosen=item===card;item.classList.toggle('selected',chosen);item.setAttribute('aria-pressed',String(chosen))})})})();

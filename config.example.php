@@ -13,4 +13,14 @@ return [
         'password' => '',
         'charset' => 'utf8mb4',
     ],
+    // Configure pelo ambiente GAME_SMTP_* em produção para não versionar credenciais.
+    'mail' => [
+        'from' => '',
+        'from_name' => 'NAVE - Explorador espacial',
+        'smtp_host' => '',
+        'smtp_port' => 587,
+        'smtp_secure' => 'tls', // tls (STARTTLS), ssl (SMTPS) ou none
+        'smtp_user' => '',
+        'smtp_password' => '',
+    ],
 ];

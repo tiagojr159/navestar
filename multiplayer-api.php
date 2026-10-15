@@ -147,7 +147,7 @@ try {
         }
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error' => 'Use GET ou POST.'], 405);
         $order = mpInput()['order'] ?? null;
-        $allowed = ['route','cargo','telemetry','ship-status','maneuver'];
+        $allowed = ['route','cargo','friends-online','telemetry','ship-status','maneuver'];
         $validOrder = is_array($order)
             && count($order) === count($allowed)
             && count(array_filter($order, static fn($item) => is_string($item) && in_array($item, $allowed, true))) === count($allowed)

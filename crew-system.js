@@ -5,7 +5,7 @@
   const state = { inside: false, station: null, lastHull: null, busy: false, docking: false, forceInterior: false };
   const style = document.createElement('style');
   style.textContent = `
-    .copilot-mode .dpad .ctrl,.copilot-mode .throttle button:not(#fireWeapon),.copilot-mode #routeGo,.copilot-mode #routeTarget,.station-docked-mode .dpad .ctrl,.station-docked-mode .throttle button:not(#fireWeapon),.station-docked-mode #bodySelect,.station-docked-mode #routeGo,.station-docked-mode #routeTarget{pointer-events:none!important;opacity:.3;cursor:not-allowed}
+    .copilot-mode .dpad .ctrl,.copilot-mode .throttle button:not(#fireWeapon),.copilot-mode #routeGo,.copilot-mode #routeTarget,.station-docked-mode .dpad .ctrl,.station-docked-mode .throttle button:not(#fireWeapon),.station-docked-mode #routeGo,.station-docked-mode #routeTarget{pointer-events:none!important;opacity:.3;cursor:not-allowed}
     .crew-interior{position:fixed;inset:0;z-index:90;display:none;place-items:center;padding:20px;background:rgba(1,7,16,.94);backdrop-filter:blur(12px);color:#e8f8ff;font-family:'Barlow Condensed',sans-serif}
     .crew-interior.open{display:grid}.crew-shell{position:relative;width:min(1120px,96vw);height:min(760px,94vh);overflow:hidden;border:1px solid rgba(106,214,235,.48);background:linear-gradient(145deg,#0b2332,#06111d 65%,#081a2a);box-shadow:0 0 90px #1683ba26}
     .crew-head{height:64px;display:flex;align-items:center;gap:16px;padding:0 22px;border-bottom:1px solid #244555}.crew-head strong{font:11px 'Space Mono';letter-spacing:.18em}.crew-head small{color:#81afbd;font:8px 'Space Mono'}.crew-head button{margin-left:auto}

@@ -2,12 +2,12 @@
   const dock = document.querySelector('#controlSidebar');
   if (!dock) return;
   const sections = [];
+  function closeButton(owner,title){const button=document.createElement('button');button.type='button';button.className='dock-tab-close';button.textContent='×';button.title='Fechar '+title.toLowerCase();button.setAttribute('aria-label','Fechar '+title.toLowerCase());button.addEventListener('click',event=>{event.stopPropagation();owner.hidden=true});return button}
   function panel(title, key, node) {
     if (!node) return null;
     const section = document.createElement('section');
-    let initiallyCollapsed = false;
-    try { initiallyCollapsed = localStorage.getItem('navestar-panel-' + key + '-collapsed') === 'true'; } catch (_) {}
-    section.className = 'dock-section' + (initiallyCollapsed ? ' collapsed' : '');
+    const initiallyCollapsed = true;
+    section.className = 'dock-section collapsed';
     section.dataset.section = key;
     const head = document.createElement('header');
     head.className = 'dock-section-head';
@@ -22,7 +22,7 @@
     const body = document.createElement('div');
     body.className = 'dock-section-body';
     body.append(node);
-    head.append(label, toggle);
+    head.append(label, toggle, closeButton(section,title));
     section.append(head, body);
     toggle.addEventListener('click', () => {
       const collapsed = section.classList.toggle('collapsed');
@@ -38,7 +38,6 @@
   const route = dock.querySelector('#routePanel');
   const cargo = dock.querySelector('#cargoBay');
   let friendsOnlineCollapsed = true;
-  try { friendsOnlineCollapsed = localStorage.getItem('navestar-friends-online-collapsed') !== 'false'; } catch (_) {}
   const friendsOnlineSection = document.createElement('section');
   friendsOnlineSection.className = 'dock-section friends-online-section' + (friendsOnlineCollapsed ? ' collapsed' : '');
   friendsOnlineSection.dataset.section = 'friends-online';
@@ -61,7 +60,7 @@
   friendsOnlineEmpty.className = 'friends-online-empty';
   friendsOnlineEmpty.textContent = 'Nenhum amigo online.';
   friendsOnlineBody.append(friendsOnlineEmpty);
-  friendsOnlineHead.append(friendsOnlineLabel, friendsOnlineCount, friendsOnlineToggle);
+  friendsOnlineHead.append(friendsOnlineLabel, friendsOnlineCount, friendsOnlineToggle, closeButton(friendsOnlineSection,'amigos online'));
   friendsOnlineSection.append(friendsOnlineHead, friendsOnlineBody);
   friendsOnlineToggle.addEventListener('click', () => {
     const collapsed = friendsOnlineSection.classList.toggle('collapsed');
@@ -178,12 +177,29 @@
   const maneuver = document.querySelector('.bottomright');
   maneuver?.remove();
 
-  if (route) dock.append(route);
+  if (route) { route.querySelector('.route-head')?.append(closeButton(route,'planejador de rota')); dock.append(route); }
   panel('TELEMETRIA', 'telemetry', navReadouts);
   panel('STATUS DA NAVE', 'ship-status', telemetry);
   panel('MANOBRA', 'maneuver', maneuver);
-  if (cargo) dock.append(cargo);
+  if (cargo) { cargo.querySelector('.cargo-head')?.append(closeButton(cargo,'compartimento de carga')); dock.append(cargo); }
 
+  // Uma nova sessão começa sem painéis abertos; cada aba é ativada pelo menu sanduíche.
+  dock.querySelectorAll('.dock-section').forEach(section => { section.dataset.closed = 'true'; });
+  friendsOnlineSection.dataset.closed = 'true';
+  if (route) route.dataset.closed = 'true';
+  if (cargo) cargo.dataset.closed = 'true';
+  if (route) {
+    route.classList.add('collapsed');
+    const toggle = route.querySelector('#routeMinimize');
+    toggle?.setAttribute('aria-expanded', 'false');
+    toggle?.setAttribute('aria-label', 'Expandir planejador');
+  }
+  if (cargo) {
+    cargo.classList.add('collapsed');
+    const toggle = cargo.querySelector('#cargoFold');
+    toggle?.setAttribute('aria-expanded', 'false');
+    toggle?.setAttribute('aria-label', 'Expandir compartimento de carga');
+  }
   const style = document.createElement('style');
   style.textContent = `
     .control-sidebar{position:fixed;z-index:30;top:70px;right:12px;width:min(300px,calc(100vw - 24px));max-height:calc(100vh - 82px);display:flex;flex-direction:column;gap:7px;overflow-y:auto;overscroll-behavior:contain;padding:0 3px 4px 0;scrollbar-width:thin;scrollbar-color:rgba(113,211,223,.4) transparent}
@@ -192,6 +208,7 @@
     .control-sidebar .route-panel.collapsed,.control-sidebar .cargo-bay.collapsed{width:100%!important;min-width:0!important}
     .control-sidebar .dock-section{flex:none;min-width:0;padding:9px;background:rgba(5,19,31,.92);border:1px solid rgba(113,211,223,.28);backdrop-filter:blur(12px);box-shadow:0 8px 24px #0004}
     .dock-section-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;color:#79bcca;font:8px 'Space Mono';letter-spacing:.15em}
+    .dock-tab-close{flex:none;width:22px!important;height:22px!important;margin:0 0 0 4px!important;padding:0!important;border:1px solid rgba(123,206,222,.4)!important;border-radius:4px;background:#081b27!important;color:#b9eff1!important;font:16px monospace!important;line-height:1!important;cursor:pointer}.control-sidebar .route-head .dock-tab-close,.control-sidebar .cargo-head .dock-tab-close{width:24px!important;height:24px!important;flex:0 0 24px!important;margin:0!important}
     .dock-section-toggle{flex:none;width:24px;height:22px;margin:0!important;padding:0!important;border:1px solid rgba(123,206,222,.4);background:#081b27;color:#b9eff1;font:15px monospace;cursor:pointer}
     .dock-section-body{min-width:0}.dock-section.collapsed{padding-bottom:8px}.dock-section.collapsed .dock-section-body{display:none}.dock-section.collapsed .dock-section-head{margin:0}
     .friends-online-count{color:#61e5c8;font:8px 'Space Mono';margin-left:auto}.friends-online-section .dock-section-head>span{flex:1}.friends-online-list{display:flex;flex-direction:column;gap:5px;max-height:170px;overflow:auto}.friends-online-row{display:flex;align-items:center;gap:4px;min-width:0;padding:5px 4px;border:1px solid rgba(113,211,223,.16);background:rgba(9,31,43,.76)}.friends-online-profile{display:flex;align-items:center;gap:6px;min-width:0;flex:1;padding:1px;border:0;background:transparent;color:#c5e2e7;text-align:left;font:9px 'Space Mono';cursor:pointer}.friends-online-profile span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.friends-online-profile .online-dot{flex:none;width:7px;height:7px;border-radius:50%;background:#50e9b6;box-shadow:0 0 8px #50e9b6}.friends-online-follow,.friends-online-call{flex:none;width:23px;height:21px;padding:0;border:1px solid rgba(113,211,223,.28);background:#071923;color:#7fe1df;font:11px 'Space Mono';cursor:pointer}.friends-online-follow{color:#7fe1b8;border-color:rgba(117,235,192,.3)}.friends-online-call:hover,.friends-online-follow:hover{border-color:#78eff0;color:#d4ffff}.friends-online-empty{padding:7px;color:#789aa3;font:8px 'Space Mono'}
@@ -212,15 +229,9 @@
   }
   const routePanel = document.querySelector('#routePanel');
   const routeToggle = document.querySelector('#routeMinimize');
-  try {
-    const saved = localStorage.getItem('navestar-panel-route-collapsed');
-    if (saved !== null && routePanel && routeToggle) {
-      const collapsed = saved === 'true';
-      routePanel.classList.toggle('collapsed', collapsed);
-      routeToggle.setAttribute('aria-expanded', String(!collapsed));
-      routeToggle.setAttribute('aria-label', collapsed ? 'Expandir planejador' : 'Minimizar planejador');
-    }
-  } catch (_) {}
+  routePanel?.classList.add('collapsed');
+  routeToggle?.setAttribute('aria-expanded', 'false');
+  routeToggle?.setAttribute('aria-label', 'Expandir planejador');
   routeToggle?.addEventListener('click', () => {
     try { localStorage.setItem('navestar-panel-route-collapsed', String(routePanel.classList.contains('collapsed'))); } catch (_) {}
   });
@@ -228,16 +239,10 @@
   normalizeToggle(document.querySelector('#cargoFold'));
   const navBox = document.querySelector('.navbox');
   const navFold = document.querySelector('#navFold');
-  try {
-    const saved = localStorage.getItem('navestar-panel-telemetry-collapsed');
-    if (saved !== null && navBox && navFold) {
-      const collapsed = saved === 'true';
-      navBox.classList.toggle('expanded', !collapsed);
-      navFold.setAttribute('aria-expanded', String(!collapsed));
-      navFold.setAttribute('aria-label', collapsed ? 'Mostrar detalhes de telemetria' : 'Ocultar detalhes de telemetria');
-      navFold.lastElementChild.textContent = collapsed ? '＋' : '−';
-    }
-  } catch (_) {}
+  navBox?.classList.remove('expanded');
+  navFold?.setAttribute('aria-expanded', 'false');
+  navFold?.setAttribute('aria-label', 'Mostrar detalhes de telemetria');
+  if (navFold?.lastElementChild) navFold.lastElementChild.textContent = '+';
   navFold?.addEventListener('click', () => {
     try { localStorage.setItem('navestar-panel-telemetry-collapsed', String(!navBox.classList.contains('expanded'))); } catch (_) {}
   });
@@ -245,14 +250,17 @@
   const header = document.createElement('div');
   header.className = 'control-sidebar-title';
   header.innerHTML = '<span>PAINEL DA NAVE</span><small>?</small>';
+  // Os painéis são acessados pelo menu sanduíche; este cabeçalho duplicava a navegação.
+  // Mantém a estrutura gerada fora do layout visual para não afetar a montagem dos painéis.
+  header.hidden = true;
   dock.prepend(header);
   const headerStyle = document.createElement('style');
   headerStyle.textContent = '.control-sidebar-title{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;padding:9px 11px;background:#071724f2;border:1px solid rgba(113,211,223,.38);color:#c6edf0;font:9px "Space Mono";letter-spacing:.16em;backdrop-filter:blur(12px)}.control-sidebar-title small{color:#70e3d2;font-size:14px}';
   document.head.appendChild(headerStyle);
-  const orderKeys = ['route', 'cargo', 'telemetry', 'ship-status', 'maneuver'];
-  const defaultOrder = ['route', 'cargo', 'telemetry', 'ship-status', 'maneuver'];
+  const orderKeys = ['route', 'cargo', 'friends-online', 'telemetry', 'ship-status', 'maneuver'];
+  const defaultOrder = ['route', 'cargo', 'friends-online', 'telemetry', 'ship-status', 'maneuver'];
   const elements = new Map([
-    ['route', route], ['cargo', cargo],
+    ['route', route], ['cargo', cargo], ['friends-online', friendsOnlineSection],
     ...sections.map(section => [section.dataset.section, section])
   ]);
   const orderTools = document.createElement('style');
@@ -262,7 +270,7 @@
     const handle = document.createElement('button');
     handle.type = 'button'; handle.className = 'dock-drag-handle'; handle.textContent = '⠿';
     handle.title = 'Arraste para reordenar'; handle.setAttribute('aria-label', `Mover ${title}. Use as setas para cima ou para baixo.`);
-    handle.draggable = true; handle.dataset.dragKey = key;
+    handle.draggable = false; handle.dataset.dragKey = key;
     handle.addEventListener('keydown', event => {
       if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
       event.preventDefault();
@@ -270,19 +278,52 @@
       if (j < 0 || j >= current.length) return;
       [current[i], current[j]] = [current[j], current[i]]; applyOrder(current); saveOrder(current);
     });
-    handle.addEventListener('dragstart', event => { draggedKey = key; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', key); });
-    handle.addEventListener('dragend', () => { draggedKey = null; dock.querySelectorAll('.dock-drop-target').forEach(el => el.classList.remove('dock-drop-target')); });
+    handle.addEventListener('pointerdown', event => {
+      if (event.button !== 0 || pointerDrag) return;
+      pointerDrag = {key, id:event.pointerId, y:event.clientY, started:false, target:key};
+      handle.setPointerCapture?.(event.pointerId);
+    });
+    handle.addEventListener('pointermove', event => {
+      if (!pointerDrag || pointerDrag.id !== event.pointerId) return;
+      if (!pointerDrag.started && Math.abs(event.clientY-pointerDrag.y) < 7) return;
+      pointerDrag.started = true; event.preventDefault();
+      const current=orderToolsNow();
+      const visible=current.filter(candidate=>{const node=elements.get(candidate);return node&&!node.hidden});
+      const above=visible.find(candidate=>{const rect=elements.get(candidate).getBoundingClientRect();return event.clientY<rect.top+rect.height/2});
+      pointerDrag.target=above||visible.at(-1)||key;
+      pointerDrag.after=!above;
+      dock.querySelectorAll('.dock-drop-target').forEach(el=>el.classList.remove('dock-drop-target'));
+      elements.get(target)?.classList.add('dock-drop-target');
+    });
+    const finishPointerDrag = event => {
+      if (!pointerDrag || pointerDrag.id !== event.pointerId) return;
+      const state=pointerDrag; pointerDrag=null;
+      dock.querySelectorAll('.dock-drop-target').forEach(el=>el.classList.remove('dock-drop-target'));
+      if (!state.started || state.target===state.key) return;
+      const current=orderToolsNow(),from=current.indexOf(state.key);
+      if(from<0)return;
+      current.splice(from,1);
+      const targetIndex=current.indexOf(state.target);
+      if(targetIndex<0)return;
+      current.splice(targetIndex+(state.after?1:0),0,state.key);applyOrder(current);saveOrder(current);
+    };
+    handle.addEventListener('pointerup', finishPointerDrag);
+    handle.addEventListener('pointercancel', finishPointerDrag);
     return handle;
   }
   let draggedKey = null;
+  let pointerDrag = null;
   route?.querySelector('.route-head')?.prepend(dragHandle('route', 'planejador de rota'));
   cargo?.querySelector('.cargo-head')?.prepend(dragHandle('cargo', 'carga'));
+  friendsOnlineSection.querySelector('.dock-section-head')?.prepend(dragHandle('friends-online', 'amigos online'));
   sections.forEach(section => section.querySelector('.dock-section-head')?.prepend(dragHandle(section.dataset.section, section.querySelector('.dock-section-head span')?.textContent || 'painel')));
-  function orderToolsNow() { return [...elements.entries()].filter(([, element]) => element?.parentElement === dock).map(([key]) => key); }
+  function orderToolsNow() {
+    return Array.from(dock.children, node => [...elements.entries()].find(([, element]) => element === node)?.[0]).filter(key => key && orderKeys.includes(key));
+  }
   function applyOrder(order) {
     const normalized = [...order.filter(key => orderKeys.includes(key) && elements.has(key))];
     orderKeys.forEach(key => { if (elements.has(key) && !normalized.includes(key)) normalized.push(key); });
-    normalized.forEach(key => { const element = elements.get(key); if (element) dock.append(element); if (key === 'cargo') dock.append(friendsOnlineSection); });
+    normalized.forEach(key => { const element = elements.get(key); if (element) dock.append(element); });
   }
   async function saveOrder(order) {
     const validOrder = order.filter(key => orderKeys.includes(key));
@@ -301,6 +342,7 @@
     });
   }
   orderTools.textContent += '.dock-drop-target{outline:1px solid #43dce4;outline-offset:1px}';
+  orderTools.textContent += '.dock-tab-close{box-sizing:border-box!important;width:28px!important;height:26px!important;flex:0 0 28px!important;margin:0 0 0 4px!important;padding:0!important;border:1px solid rgba(255,132,132,.72)!important;border-radius:5px!important;background:rgba(74,27,34,.78)!important;color:#ffe4e4!important;font:18px/1 monospace!important;cursor:pointer!important}.dock-tab-close:hover{background:#84363d!important;border-color:#ffaaaa!important;color:#fff!important}.dock-section-head{gap:7px!important}.route-head .dock-tab-close,.cargo-head .dock-tab-close{width:28px!important;height:26px!important;flex:0 0 28px!important;margin:0!important;padding:0!important}.control-sidebar .route-head .dock-tab-close,.control-sidebar .cargo-head .dock-tab-close{width:28px!important;height:26px!important;flex:0 0 28px!important;margin:0!important;padding:0!important}';
   applyOrder(defaultOrder);
   try {
     const response = await fetch('multiplayer-api.php?action=control-layout', {credentials:'same-origin',cache:'no-store'});
