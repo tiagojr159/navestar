@@ -114,7 +114,7 @@
     <div class="mc-context" id="mcContext">
       <button data-click="#orbit">◉ ÓRBITA</button><button data-context-action="dock" data-click="#dockButton">⚓ ACOPLAR</button><button data-context-action="enter-station" data-click="#dockButton" hidden>↗ ENTRAR NA ESTAÇÃO</button><button data-click="#stationMarketButton">◇ MERCADO</button><button data-click="#stationAttackButton">✦ ATACAR ESTAÇÃO</button>
     </div>
-    <div class="mc-directions" aria-label="Direcionais da nave"><button type="button" data-hold="w" aria-label="Avançar">▲</button><button type="button" data-hold="a" aria-label="Virar para esquerda">◀</button><button type="button" data-hold="s" aria-label="Recuar">▼</button><button type="button" data-hold="d" aria-label="Virar para direita">▶</button></div>
+    <div class="mc-directions" aria-label="Controle da camera orbital"><button type="button" data-hold="ArrowUp" aria-label="Olhar para cima">▲</button><button type="button" data-hold="ArrowLeft" aria-label="Girar camera para esquerda">◀</button><button type="button" data-hold="ArrowDown" aria-label="Olhar para baixo">▼</button><button type="button" data-hold="ArrowRight" aria-label="Girar camera para direita">▶</button></div>
     <div class="mc-joystick" id="mcJoystick" aria-label="Joystick de direção"><div class="mc-stick"></div><small class="mc-stick-legend">W A S D</small></div>
     <div class="mc-actions" aria-label="Pilotagem">
       <button class="mc-action mc-boost" data-hold="shift" aria-label="Impulso (Shift)">▲<br>IMPULSO<br><small>SHIFT</small></button>

@@ -66,7 +66,7 @@ function dishGeo(){let s=new Shape(),seg=56,rings=11;let v=(r,a)=>[r*Math.cos(a)
 const STATIC={box:boxGeo(),cyl:cylGeo(),sphere:sphereGeo(),torus:torusGeo(),dish:dishGeo()};
 let shipCount=0;
 class Ship{
- constructor(){this.nodes=[];this.animated=[];shipCount++}
+ constructor(){this.nodes=[];this.animated=[];this.exhaustPorts=[];shipCount++}
  put(geo,material='white',pos=[0,0,0],rot=[0,0,0],scale=[1,1,1]){this.nodes.push({geo,material,matrix:transform(pos,rot,scale)});return this}
  box(pos,scale,mat='steel',rot=[0,0,0]){return this.put(STATIC.box,mat,pos,rot,scale)}
  cyl(pos,scale,mat='steel',rot=[0,0,0]){return this.put(STATIC.cyl,mat,pos,rot,scale)}
@@ -75,7 +75,7 @@ class Ship{
  wing(points,thickness,mat='white',y=0){return this.put(wingGeo(points,thickness),mat,[0,y,0])}
  loft(profile,mat='white',p=[0,0,0],r=[0,0,0]){return this.put(hullGeo(profile),mat,p,r)}
  beam(a,b,thick,mat='steel',cylinder=false){this.nodes.push({geo:cylinder?STATIC.cyl:STATIC.box,material:mat,matrix:basisBetween(a,b,thick)});return this}
- exhaust(x,y,z,r=1,col='cyan'){this.cyl([x,y,z],[r*2,.23,r*2],'black',[PI/2,0,0]);this.ring([x,y,z+.16],[r,r,.6],'steel');this.ring([x,y,z+.21],[r*.78,r*.78,.65],col);this.ball([x,y,z+.26],[r*1.23,r*1.23,.045],col);this.cyl([x,y,z+.08],[r*1.1,.11,r*1.1],'gunmetal',[PI/2,0,0]);return this}
+ exhaust(x,y,z,r=1,col='cyan'){this.exhaustPorts.push({x,y,z:z+.30,r,color:col});this.cyl([x,y,z],[r*2,.23,r*2],'black',[PI/2,0,0]);this.ring([x,y,z+.16],[r,r,.6],'steel');this.ring([x,y,z+.21],[r*.78,r*.78,.65],col);this.ball([x,y,z+.26],[r*1.23,r*1.23,.045],col);this.cyl([x,y,z+.08],[r*1.1,.11,r*1.1],'gunmetal',[PI/2,0,0]);return this}
  stripes(xs,zValues,y,mat='cyan',thick=.03){for(let x of xs)for(let z of zValues)this.box([x,y,z],[thick,.025,.24],mat);return this}
  panelBolts(center,dx,dz,y,mat='steel'){for(let x of [-1,1])for(let z of [-1,1])this.ball([center[0]+x*dx,center[1]+y,center[2]+z*dz],[.062,.042,.062],mat);return this}
  cockpit(p=[0,0,2],sc=[1,1,2],frame='silver'){
@@ -267,6 +267,7 @@ function draw(ts,schedule=true){render.frame=0;if(!render.last)render.last=ts;le
 setShip(0);if(!rendererOnly)render.frame=requestAnimationFrame(draw);
 window.NaveStarHangar={openShip:(index)=>setShip(index),getShipInfo:index=>{let {build,model,...info}=SHIPS[clamp(index,0,SHIPS.length-1)];return {...info}},setView,getMeshStats:index=>{let i=clamp(index|0,0,SHIPS.length-1),sh=SHIPS[i].model||(SHIPS[i].model=SHIPS[i].build());return {objects:sh.nodes.length,triangles:sh.nodes.reduce((n,o)=>n+o.geo.indices.length/3,0)};}};
 window.NaveStarShipModels=['explorer','scout','prospector','scout','attack','attack','explorer','freighter','freighter','scout'];
-window.NaveStarRemoteRenderer={canvas,render:(index,viewYaw=PI/2,viewPitch=.32)=>{setShip(index);if(rendererOnly){cam.tyaw=Number.isFinite(Number(viewYaw))?Number(viewYaw):PI/2;cam.tpitch=clamp(Number(viewPitch)||0,-.62,.62);cam.yaw=cam.tyaw;cam.pitch=cam.tpitch;cam.dist=cam.tdist;draw(performance.now(),false)}return canvas}};
+function exhaustScreenPoints(index,viewYaw=PI/2,viewPitch=.32){if(render.idx!==index)setShip(index);const ship=render.model;if(!ship?.exhaustPorts?.length)return[];const yaw=Number.isFinite(Number(viewYaw))?Number(viewYaw):PI/2,pitch=clamp(Number(viewPitch)||0,-.62,.62),distance=ship.radius*.85,eye=[distance*Math.sin(yaw)*Math.cos(pitch),distance*Math.sin(pitch),distance*Math.cos(yaw)*Math.cos(pitch)],forward=norm(mul(eye,-1)),right=norm(cross(forward,[0,1,0])),up=cross(right,forward),halfTan=Math.tan(43*PI/360),projectPoint=p=>{const rel=sub(p,eye),z=dot(rel,forward);if(z<=.1)return null;return{x:256+(dot(rel,right)/(z*halfTan*2))*256,y:128-(dot(rel,up)/(z*halfTan))*128}};return ship.exhaustPorts.map(port=>{const origin=projectPoint([port.x,port.y,port.z]),tail=projectPoint([port.x,port.y,port.z-Math.max(.35,port.r*2.6)]);if(!origin||!tail)return null;let dx=tail.x-origin.x,dy=tail.y-origin.y;if(Math.hypot(dx,dy)<3){dx=origin.x-256;dy=origin.y-128;if(Math.hypot(dx,dy)<1){dx=0;dy=1}}return{x:origin.x,y:origin.y,dx,dy,r:port.r,color:port.color}}).filter(Boolean)}
+window.NaveStarRemoteRenderer={canvas,render:(index,viewYaw=PI/2,viewPitch=.32)=>{setShip(index);if(rendererOnly){cam.tyaw=Number.isFinite(Number(viewYaw))?Number(viewYaw):PI/2;cam.tpitch=clamp(Number(viewPitch)||0,-.62,.62);cam.yaw=cam.tyaw;cam.pitch=cam.tpitch;cam.dist=cam.tdist;draw(performance.now(),false)}return canvas},getExhaustPoints:exhaustScreenPoints};
 window.NaveStarShipNames=['Nave Padrão Alpha','Nave Padrão Beta','Pesquisa Orbital','Pesquisa Profunda','Guerra Interceptora','Guerra Pesada','Shuttle de Passageiros','Liner de Passageiros','Cargueiro Industrial','Veloz R-01'];
 })();
