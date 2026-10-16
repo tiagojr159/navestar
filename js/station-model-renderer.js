@@ -149,6 +149,39 @@
         for(let i=0;i<8;i++){const a=i*Math.PI/4,c=Math.cos(a),s=Math.sin(a),x=c*258,y=s*258;beam(p3(c*78,s*78,12),p3(c*208,s*208,12),18,'#596a73');beam(p3(c*208,s*208,12),p3(x,y,12),12,'#374b58');box(x,y,25,112,92,136,'#46555e');box(x*1.09,y*1.09,86,72,58,12,'#243d4d');litBox(x*1.09,y*1.09,94,32,18,4);box(c*154,s*154,70,56,50,48,'#5c6970');stationBeacons.push({point:p3(x,y,99),color:accent,size:4})}
         ring(0,0,8,120,120,11,'#74848a');ring(0,0,29,101,101,5,'#334c5b');
         for(const [x,y] of [[0,-314],[314,0],[0,314],[-314,0]]){box(x,y,4,80,80,120,'#354854');litBox(x,y,70,26,26,5)}
+    }else if(design===23){ // Base Lunar: complexo de superficie com habitat, docas e energia solar
+        // Octagonal landing apron with marked perimeter and a recessed central service deck.
+        ring(0,-32,4,218,142,7,'#a4b5b7');ringSide(0,-36,-8,220,144,8,'#465a62');
+        box(0,-39,4,332,24,208,'#65747a');box(0,-22,8,286,12,174,'#354d58');
+        for(const x of [-142,-96,-48,0,48,96,142]){beam(p3(x,-25,-91),p3(x,-25,92),1.6,'#91a4a6')}
+        for(const x of [-145,145]){litBox(x,-18,0,16,5,4,'#ffd18a');stationBeacons.push({point:p3(x,-11,0),color:'#ffc56f',size:3.5})}
+        // Two pressure-rated habitat cylinders with glazed ends and reinforced collars.
+        for(const x of [-76,76]){
+            ellipsoid(x,-2,31,61,38,47,'#536c76',11,20);ellipsoid(x,-2,43,49,29,38,'#24485b',10,18);
+            ring(x,-2,29,62,39,5,'#b3c4c2');ring(x,-2,56,51,30,3,'#73d6e2');
+            ellipsoid(x,-7,79,45,27,10,'#8ccddd',9,16);
+            for(const windowX of [-22,0,22]){box(x+windowX,-2,82,11,12,3,'#b5f2f4');stationBeacons.push({point:p3(x+windowX,-2,85),color:'#87f3ee',size:2.3})}
+            beam(p3(x,-39,0),p3(x,-39,76),5,'#9baeb0');
+        }
+        // Central command dome, airlock and a clearly visible docking gantry.
+        ellipsoid(0,10,-49,55,50,39,'#637e86',12,20);ellipsoid(0,19,-45,43,40,31,'#16465b',11,20);
+        ring(0,10,-49,57,51,5,'#d3dfd9');ring(0,22,-45,44,41,3,accent);
+        box(0,-17,-4,52,26,54,'#b0aaa0');box(0,-3,18,42,30,16,'#344d58');
+        box(0,-7,29,23,20,4,'#74d9e3');stationBeacons.push({point:p3(0,-7,32),color:'#9afff3',size:4});
+        for(const side of [-1,1]){beam(p3(side*22,-11,20),p3(side*59,-11,37),5,'#c2c8bd');beam(p3(side*59,-11,37),p3(side*78,-11,37),4,'#9daeb0')}
+        // Broad, segmented solar wings sit low over the lunar ground.
+        for(const side of [-1,1]){
+            beam(p3(side*121,-26,-30),p3(side*264,-26,-30),8,'#aebbbc');
+            panel(side*211,-21,-30,122,82,.05);
+            beam(p3(side*144,-22,-30),p3(side*278,-22,-30),3,'#d2c898');
+            stationBeacons.push({point:p3(side*275,-8,-28),color:'#ffc96f',size:4});
+        }
+        // Communications mast, dish and perimeter lights give the silhouette scale.
+        beam(p3(0,38,-48),p3(0,120,-48),5,'#bcc8c3');
+        ellipsoid(0,124,-48,21,12,8,'#d0d6cc',8,14);ellipsoid(0,127,-42,5,5,4,accent,7,10);
+        stationBeacons.push({point:p3(0,142,-48),color:accent,size:5});
+        for(const x of [-194,194]){box(x,-18,36,22,23,23,'#344d58');box(x,-2,36,15,5,4,'#172e3c');litBox(x,1,51,12,5,4,'#ffc879')}
+        for(const x of [-152,-76,76,152]){stationBeacons.push({point:p3(x,-26,114),color:'#9cebf0',size:2.5})}
     }else{
         ring(0,0,15,175,178,23,'#c7d3c7');ring(0,0,34,157,160,5,'#bde9fe');ringSide(0,0,-18,171,174,12,'#526f79');ring(0,0,50,82,84,13,'#7899a2');beam(p3(-210,0,0),p3(210,0,0),11,'#849fa4');ellipsoid(0,0,0,58,58,48,'#294b59',12,20);
         for(let i=0;i<16;i++){const a=i*Math.PI/8,x=Math.cos(a),y=Math.sin(a);beam(p3(x*82,y*84,0),p3(x*155,y*158,18),4,'#b5c9c2');pod(x*169,y*172,20,21,14,18,'#597c85');if(i%2===0)stationBeacons.push({point:p3(x*182,y*185,28),color:accent,size:2.7})}for(let i=0;i<6;i++){const a=i*Math.PI/3;panel(Math.cos(a)*220,Math.sin(a)*220,35,54,82,a);beam(p3(Math.cos(a)*170,Math.sin(a)*170,15),p3(Math.cos(a)*205,Math.sin(a)*205,30),4,'#8da9ad')}
@@ -162,4 +195,4 @@
     if(showLabel&&p.r>8){ctx.save();ctx.textAlign='center';ctx.font='10px Space Mono';ctx.fillStyle='#d9f7f6';ctx.shadowColor='#020711';ctx.shadowBlur=7;ctx.fillText(body.name.toUpperCase(),p.x,p.y+Math.min(p.r*.9,150*scale)+18);ctx.restore()}
 }
 
-window.stationModelRenderer={draw(ctx,body,canvas,options={}){const design=Number(body.design)||0,p={x:options.x??canvas.width/2,y:options.y??canvas.height/2,r:options.radius??95},players={yaw:options.yaw===undefined?0.45:options.yaw,pitch:options.pitch===undefined?0.12:options.pitch},scaleByDesign={0:.37,1:.25,2:.39,3:.34,4:.29,5:.40,6:.25,7:.32,8:.38,9:.34,10:.29,11:.27,12:.29,13:.27,14:.29,15:.27,16:.31,17:.31,18:.33,19:.31,20:.20,21:.19,22:.23},scale=(scaleByDesign[design]||.34)*(Number(options.scaleFactor)||1);stationModelDraw(ctx,body,p,players,performance.now()/1000,false,scale)}};
+window.stationModelRenderer={draw(ctx,body,canvas,options={}){const design=Number(body.design)||0,p={x:options.x??canvas.width/2,y:options.y??canvas.height/2,r:options.radius??95},players={yaw:options.yaw===undefined?0.45:options.yaw,pitch:options.pitch===undefined?0.12:options.pitch},scaleByDesign={0:.37,1:.25,2:.39,3:.34,4:.29,5:.40,6:.25,7:.32,8:.38,9:.34,10:.29,11:.27,12:.29,13:.27,14:.29,15:.27,16:.31,17:.31,18:.33,19:.31,20:.20,21:.19,22:.23,23:.34},scale=(scaleByDesign[design]||.34)*(Number(options.scaleFactor)||1);stationModelDraw(ctx,body,p,players,performance.now()/1000,false,scale)}};

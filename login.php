@@ -4,6 +4,7 @@ declare(strict_types=1);
 session_set_cookie_params(['httponly' => true, 'samesite' => 'Lax']);
 session_start();
 require_once __DIR__ . '/database/connection.php';
+require_once __DIR__ . '/database/lunar-base.php';
 
 if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 $requestedMode = (string)($_GET['mode'] ?? 'login');
@@ -114,20 +115,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error = 'Digite um e-mail válido ou deixe o campo vazio.';
                 } else {
                     $pdo->beginTransaction();
+                    $moonBase = ensureLunarBase($pdo);
                     $insertUser = $pdo->prepare('INSERT INTO users (username,email,password_hash) VALUES (?,?,?)');
                     $insertUser->execute([$username, $email, password_hash($password, PASSWORD_DEFAULT)]);
                     $newUserId = (int)$pdo->lastInsertId();
-                    $spawnX = random_int(-2500, 2500);
-                    $spawnZ = random_int(-2500, 2500);
                     $starter = $starterShips[$starterModel];
-                    $pdo->prepare('INSERT INTO ships (user_id,ship_name,ship_class,cargo_capacity_kg,fuel_capacity_units,pos_x,pos_z,hull_hp,fuel_units,is_active) VALUES (?,?,?,?,?,?,?,?,?,1)')
-                        ->execute([$newUserId, $starter['name'] . ' · ' . $username, $starterModel, $starter['cargo'], $starter['fuel'], $spawnX, $spawnZ, $starter['hull'], $starter['fuel']]);
+                    $pdo->prepare('INSERT INTO ships (user_id,ship_name,ship_class,cargo_capacity_kg,fuel_capacity_units,pos_x,pos_z,docked_station_id,hull_hp,fuel_units,is_active) VALUES (?,?,?,?,?,?,?,?,?,?,1)')
+                        ->execute([$newUserId, $starter['name'] . ' · ' . $username, $starterModel, $starter['cargo'], $starter['fuel'], $moonBase['pos_x'], $moonBase['pos_z'], (int)$moonBase['id'], $starter['hull'], $starter['fuel']]);
+                    $pdo->prepare("INSERT INTO station_occupants (user_id,station_id,mode,ship_id) VALUES (?,?,'station',NULL)")
+                        ->execute([$newUserId, (int)$moonBase['id']]);
                     $pdo->prepare('UPDATE users SET last_seen_at=NOW() WHERE id=?')->execute([$newUserId]);
                     $pdo->commit();
                     session_regenerate_id(true);
                     $_SESSION['user_id'] = $newUserId;
                     $_SESSION['username'] = $username;
-                    header('Location: index.php');
+                    header('Location: index.php?spawn=moon');
                     exit;
                 }
             } else {
@@ -143,8 +145,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $shipQuery->execute([$userId]);
                     $shipId = (int)$shipQuery->fetchColumn();
                     if (!$shipId) {
-                        $pdo->prepare('INSERT INTO ships (user_id,ship_name,pos_x,pos_z,is_active) VALUES (?,?,?,?,1)')
-                            ->execute([$userId, 'Nave de ' . $user['username'], random_int(-2500,2500), random_int(-2500,2500)]);
+                        $moonBase = ensureLunarBase($pdo);
+                        $pdo->prepare('INSERT INTO ships (user_id,ship_name,pos_x,pos_z,docked_station_id,is_active) VALUES (?,?,?,?,?,1)')
+                            ->execute([$userId, 'Nave de ' . $user['username'], $moonBase['pos_x'], $moonBase['pos_z'], (int)$moonBase['id']]);
+                        $pdo->prepare("INSERT INTO station_occupants (user_id,station_id,mode,ship_id) VALUES (?,?,'station',NULL) ON DUPLICATE KEY UPDATE station_id=VALUES(station_id),mode='station',ship_id=NULL")
+                            ->execute([$userId, (int)$moonBase['id']]);
                     } else {
                         $pdo->prepare('UPDATE ships SET is_active=1 WHERE id=?')->execute([$shipId]);
                     }

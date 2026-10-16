@@ -75,10 +75,11 @@ $bodies = [
     ['id'=>'celestia','name'=>'Celestia','type'=>'Estação','x'=>-88000,'y'=>0,'z'=>82000,'r'=>230,'color'=>'#ffe0a0','texture'=>'station','design'=>3],
     ['id'=>'khepri','name'=>'Estaleiro Khepri','type'=>'Estação','x'=>-30000,'y'=>0,'z'=>-6000,'r'=>240,'color'=>'#ffa657','texture'=>'station','design'=>4],
     ['id'=>'biosfera','name'=>'Biosfera','type'=>'Estação','x'=>80000,'y'=>0,'z'=>-96000,'r'=>230,'color'=>'#7ee7f0','texture'=>'station','design'=>5],
-    ['id'=>'helios','name'=>'Bastilha Hélios','type'=>'Estação','x'=>21000,'y'=>0,'z'=>5000,'r'=>220,'color'=>'#f3b75e','texture'=>'station','design'=>6],
+    ['id'=>'helios','name'=>'Bastilha Hélios','type'=>'Estação','x'=>21000,'y'=>0,'z'=>65000,'r'=>220,'color'=>'#f3b75e','texture'=>'station','design'=>6],
     ['id'=>'polaris','name'=>'Farol Polaris','type'=>'Estação','x'=>69000,'y'=>0,'z'=>-32000,'r'=>200,'color'=>'#c7d8ef','texture'=>'station','design'=>7],
     ['id'=>'icaro','name'=>'Refúgio Ícaro','type'=>'Estação','x'=>-65000,'y'=>0,'z'=>-16000,'r'=>220,'color'=>'#7cebb0','texture'=>'station','design'=>8],
     ['id'=>'vesper','name'=>'Nexo Vésper','type'=>'Estação','x'=>5000,'y'=>0,'z'=>-63000,'r'=>210,'color'=>'#bde9fe','texture'=>'station','design'=>9],
+    ['id'=>'luna-base','name'=>'Base Lunar','type'=>'Estação','x'=>17080,'y'=>0,'z'=>-15000,'r'=>180,'color'=>'#d8e3ef','wallColor'=>'#e9edf1','texture'=>'station','design'=>23,'base'=>true],
     ['id'=>'vortice','name'=>'Nébula Vórtice','type'=>'Estação','x'=>108000,'y'=>0,'z'=>-28000,'r'=>245,'color'=>'#8d7bff','texture'=>'station','design'=>10],
     ['id'=>'aegis','name'=>'Cidadela Aegis','type'=>'Estação','x'=>-110000,'y'=>0,'z'=>-25000,'r'=>260,'color'=>'#62e6d2','texture'=>'station','design'=>11],
     ['id'=>'járdim-io','name'=>'Jardim de Ío','type'=>'Estação','x'=>34000,'y'=>0,'z'=>112000,'r'=>250,'color'=>'#72f0ad','texture'=>'station','design'=>12],
@@ -93,6 +94,36 @@ $bodies = [
     ['id'=>'lanca-orion','name'=>'Lança de Órion','type'=>'Estação','x'=>162000,'y'=>0,'z'=>92000,'r'=>290,'color'=>'#68baff','texture'=>'station','design'=>21],
     ['id'=>'coroa-orion','name'=>'Coroa de Órion','type'=>'Estação','x'=>-165000,'y'=>0,'z'=>-97000,'r'=>300,'color'=>'#68e4ec','texture'=>'station','design'=>22],
 ];
+
+// Bases de superficie nas dez maiores luas habitadas pelo catalogo (a Lua da Terra ja tem a Base Lunar).
+$moonBaseDefinitions = [
+    ['moon'=>'ganymede','id'=>'ganymede-base','name'=>'Base Ganimedes','wallColor'=>'#d8e6db','color'=>'#9ccfc1'],
+    ['moon'=>'tita','id'=>'titan-base','name'=>'Base Titã','wallColor'=>'#f2d6a6','color'=>'#d6a05c'],
+    ['moon'=>'callisto','id'=>'callisto-base','name'=>'Base Calisto','wallColor'=>'#d7d4e8','color'=>'#a59dbc'],
+    ['moon'=>'io','id'=>'io-base','name'=>'Base Io','wallColor'=>'#f2c0a1','color'=>'#d98252'],
+    ['moon'=>'europa','id'=>'europa-base','name'=>'Base Europa','wallColor'=>'#d4edf5','color'=>'#91c9df'],
+    ['moon'=>'tritao','id'=>'triton-base','name'=>'Base Tritão','wallColor'=>'#d4eee9','color'=>'#93d2c8'],
+    ['moon'=>'titania','id'=>'titania-base','name'=>'Base Titania','wallColor'=>'#d9e8cd','color'=>'#a9c58e'],
+    ['moon'=>'reia','id'=>'rhea-base','name'=>'Base Reia','wallColor'=>'#f0d8dd','color'=>'#d6a4b4'],
+    ['moon'=>'oberon','id'=>'oberon-base','name'=>'Base Oberon','wallColor'=>'#d5e4d7','color'=>'#9bc0a7'],
+    ['moon'=>'iapeto','id'=>'iapetus-base','name'=>'Base Japeto','wallColor'=>'#ebe0c8','color'=>'#c5aa78'],
+];
+$moonById = [];
+foreach ($bodies as $body) {
+    $moonById[$body['id']] = $body;
+}
+foreach ($moonBaseDefinitions as $base) {
+    $moon = $moonById[$base['moon']] ?? null;
+    if (!$moon) {
+        continue;
+    }
+    $bodies[] = [
+        'id'=>$base['id'], 'name'=>$base['name'], 'type'=>'Estação', 'code'=>$base['id'],
+        'x'=>$moon['x'] + $moon['r'] + 8, 'y'=>0, 'z'=>$moon['z'], 'r'=>180,
+        'color'=>$base['color'], 'wallColor'=>$base['wallColor'], 'texture'=>'station', 'design'=>23,
+        'parent'=>$moon['id'], 'base'=>true,
+    ];
+}
 
 // Escala do setor ampliada para criar rotas longas entre estações.
 foreach ($bodies as &$body) {

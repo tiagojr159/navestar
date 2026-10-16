@@ -72,11 +72,13 @@ try {
   <footer class="page-footer"><span>© NAVESTAR — FROTA ESTELAR 3D</span><span>10 NAVES / WEBGL NATIVO</span><span>HANGAR A-07 • PORTO AURORA</span></footer>
  </div>
  <div id="hangar-notice" class="hangar-notice" role="status" aria-live="polite" hidden></div>
-  <script src="assets/hangar3d/naves3d.js?v=2"></script>
+  <script src="assets/hangar3d/naves3d.js?v=17"></script>
  <script>
  (()=>{const current=<?= json_encode($shipClass) ?>,currentShipName=<?= json_encode($shipName, JSON_UNESCAPED_UNICODE) ?>,csrf=<?= json_encode($csrf) ?>,notice=document.querySelector('#hangar-notice'),button=document.querySelector('#select-ship');let currentModel=0;let timer;
   function message(text){notice.textContent=text;notice.hidden=false;clearTimeout(timer);timer=setTimeout(()=>notice.hidden=true,5000)}
-  function selectShip(index){currentModel=index;window.NaveStarHangar?.openShip(index)}
+  const openShip=window.NaveStarHangar?.openShip;
+  if(openShip)window.NaveStarHangar.openShip=index=>{currentModel=Number(index);return openShip(index)};
+  function selectShip(index){currentModel=Number(index);window.NaveStarHangar?.openShip(index)}
   window.addEventListener('load',()=>{let savedModel=window.NaveStarShipNames?.findIndex(name=>currentShipName.startsWith(name))??-1,initial=savedModel>=0?savedModel:(window.NaveStarShipModels?.[current]??0);selectShip(initial)});  button.addEventListener('click',async()=>{const model=window.NaveStarShipModels?.[currentModel];if(!model){message('Não foi possível identificar esta nave.');return}button.disabled=true;button.textContent='ATUALIZANDO HANGAR…';try{const response=await fetch('hangar-activate.php',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({model,visualModel:currentModel,visualName:window.NaveStarShipNames?.[currentModel]}),credentials:'same-origin'});const data=await response.json();if(!response.ok||!data.ok)throw new Error(data.error||'Não foi possível selecionar a nave.');button.textContent='NAVE SELECIONADA';message(data.message||'Nave selecionada. Voltando ao jogo…');setTimeout(()=>location.href='index.php',800)}catch(error){message(error.message);button.disabled=false;button.textContent='SELECIONAR ESTA NAVE'}});
  })();
  </script>
