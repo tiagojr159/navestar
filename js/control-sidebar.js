@@ -178,9 +178,6 @@
   maneuver?.remove();
 
   if (route) { route.querySelector('.route-head')?.append(closeButton(route,'planejador de rota')); dock.append(route); }
-  panel('TELEMETRIA', 'telemetry', navReadouts);
-  panel('STATUS DA NAVE', 'ship-status', telemetry);
-  panel('MANOBRA', 'maneuver', maneuver);
   if (cargo) { cargo.querySelector('.cargo-head')?.append(closeButton(cargo,'compartimento de carga')); dock.append(cargo); }
 
   // Uma nova sessão começa sem painéis abertos; cada aba é ativada pelo menu sanduíche.
@@ -257,8 +254,8 @@
   const headerStyle = document.createElement('style');
   headerStyle.textContent = '.control-sidebar-title{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;padding:9px 11px;background:#071724f2;border:1px solid rgba(113,211,223,.38);color:#c6edf0;font:9px "Space Mono";letter-spacing:.16em;backdrop-filter:blur(12px)}.control-sidebar-title small{color:#70e3d2;font-size:14px}';
   document.head.appendChild(headerStyle);
-  const orderKeys = ['route', 'cargo', 'friends-online', 'telemetry', 'ship-status', 'maneuver'];
-  const defaultOrder = ['route', 'cargo', 'friends-online', 'telemetry', 'ship-status', 'maneuver'];
+  const orderKeys = ['route', 'cargo', 'friends-online'];
+  const defaultOrder = ['route', 'cargo', 'friends-online'];
   const elements = new Map([
     ['route', route], ['cargo', cargo], ['friends-online', friendsOnlineSection],
     ...sections.map(section => [section.dataset.section, section])

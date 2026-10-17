@@ -57,8 +57,9 @@
   }
 
   function updateBank(side, dt) {
-    const target = Math.max(-1, Math.min(1, Number(side) || 0)) * 0.23;
-    bank += (target - bank) * Math.min(1, Math.max(0, Number(dt) || 0) * 0.16);
+    const target = Math.max(-1, Math.min(1, Number(side) || 0)) * 0.14;
+    const response = target === 0 ? 0.24 : 0.16;
+    bank += (target - bank) * Math.min(1, Math.max(0, Number(dt) || 0) * response);
     if (Math.abs(bank) < 0.002 && !target) bank = 0;
     return bank;
   }

@@ -59,6 +59,12 @@ function mpCallId(): string
     return substr($hex, 0, 8) . '-' . substr($hex, 8, 4) . '-' . substr($hex, 12, 4) . '-' . substr($hex, 16, 4) . '-' . substr($hex, 20);
 }
 
+function mpEnsureFuelDrops(PDO $pdo): void {
+    static $ready=false; if ($ready) return;
+    $column=$pdo->query("SHOW COLUMNS FROM ship_wrecks LIKE 'fuel_units'")->fetch(PDO::FETCH_ASSOC);
+    if (!$column) $pdo->exec('ALTER TABLE ship_wrecks ADD COLUMN fuel_units DECIMAL(8,2) UNSIGNED NOT NULL DEFAULT 0 AFTER energy_units');
+    $ready=true;
+}
 function mpEnsurePlayerKillerMarks(PDO $pdo): void
 {
     static $ready = false;
@@ -493,6 +499,9 @@ try {
             $selectedQuery->execute([(int)$ship['id']]); $selected=$selectedQuery->fetch(PDO::FETCH_ASSOC);
         }
         $activeCode=(string)($ship['equipped_code']??'');
+        $mountQuery=$pdo->prepare("SELECT e.code,se.quantity,se.ammo_current,e.ammo_capacity,e.damage FROM ship_equipment se JOIN equipment e ON e.id=se.equipment_id WHERE se.ship_id=? AND se.is_equipped=1 AND se.quantity>0 AND e.equipment_type='weapon' ORDER BY e.id");
+        $mountQuery->execute([(int)$ship['id']]); $weaponMounts=[];
+        foreach($mountQuery->fetchAll(PDO::FETCH_ASSOC) as $mounted){$mountedKind=$codeToKind[$mounted['code']]??null;if($mountedKind)for($copy=0;$copy<(int)$mounted['quantity'];$copy++)$weaponMounts[]=['kind'=>$mountedKind,'ammo'=>(int)$mounted['ammo_current'],'maxAmmo'=>(int)$mounted['ammo_capacity'],'damage'=>(int)$mounted['damage']];}
         if ($activeCode!=='') { $activeQuery=$pdo->prepare('SELECT e.code,se.ammo_current,e.ammo_capacity,e.weight_kg FROM ship_equipment se JOIN equipment e ON e.id=se.equipment_id WHERE se.ship_id=? AND e.code=? AND se.is_equipped=1 LIMIT 1'); $activeQuery->execute([(int)$ship['id'],$activeCode]); $selected=$activeQuery->fetch(PDO::FETCH_ASSOC) ?: $selected; }
         $equippedKind = $codeToKind[$activeCode!==''?$activeCode:($selected['code']??$selectedCode)] ?? 'pulse';
         $upgraded = in_array('pulse_capacitor_mk2', $ownedCodes, true);
@@ -509,7 +518,7 @@ try {
             'cargo' => ['Ferro' => (int)$ship['iron_kg'], 'Niquel' => (int)$ship['nickel_kg'], 'Cobalto' => (int)$ship['cobalt_kg'], 'Gelo' => (int)$ship['ice_kg']],
             'weapon' => [
                 'installed' => $activeCode!=='' && (string)$ship['ship_class']!=='freighter', 'kind' => $equippedKind, 'owned' => array_values(array_unique($owned)),
-                'damage' => $damage, 'ammo' => (int)($selected['ammo_current'] ?? 0), 'maxAmmo' => (int)($selected['ammo_capacity'] ?? 90), 'weightKg' => $activeCode!==''?(int)($selected['weight_kg']??0):0, 'upgraded' => $upgraded
+                'damage' => $damage, 'ammo' => (int)($selected['ammo_current'] ?? 0), 'maxAmmo' => (int)($selected['ammo_capacity'] ?? 90), 'weightKg' => $activeCode!==''?(int)($selected['weight_kg']??0):0, 'upgraded' => $upgraded, 'mounts' => $weaponMounts
             ],
             'tow' => ['owned'=>(bool)$tow,'installed'=>(bool)($tow['is_equipped']??false),'weightKg'=>(int)($tow['weight_kg']??0)],
             'destroyedAsteroids' => []
@@ -563,7 +572,7 @@ try {
         $foundShip = $findShip->fetch(PDO::FETCH_ASSOC);
         $shipId = (int)($foundShip['id'] ?? 0);
         $fuel = min((int)($foundShip['fuel_capacity_units']??1000),$fuelInput);
-        if (($foundShip['ship_class']??'')==='freighter') { $owned=[]; $weapon['installed']=false; $kind='pulse'; $ammo=0; }
+        if (($foundShip['ship_class']??'')==='freighter') { $owned=[]; $weapon['installed']=false; $weapon['mounts']=[]; $kind='pulse'; $ammo=0; }
         if ($shipId && (int)$foundShip['hull_hp'] <= 0) {
             $pdo->prepare('UPDATE users SET last_seen_at=NOW() WHERE id=?')->execute([$userId]);
             $pdo->commit();
@@ -593,7 +602,7 @@ try {
             $code = $equippedCodes[$ownedKind];
             $equipmentId->execute([$code]);
             $id = (int)$equipmentId->fetchColumn();
-            if ($id) $upsertOwned->execute([$shipId, $id, $weapon['installed'] && $ownedKind === $kind ? $ammo : 0, !empty($weapon['installed']) && $ownedKind === $kind ? 1 : 0]);
+            if ($id) {$mounted=null;foreach(($weapon['mounts']??[]) as $mount){if(is_array($mount)&&($mount['kind']??'')===$ownedKind){$mounted=$mount;break;}}if(!$mounted&&!empty($weapon['installed'])&&$ownedKind===$kind)$mounted=['ammo'=>$ammo];$mountAmmo=$mounted?max(0,min($ownedKind==='singularity'?30:90,(int)($mounted['ammo']??0))):0;$upsertOwned->execute([$shipId,$id,$mountAmmo,$mounted?1:0]);}
         }
         if (!empty($weapon['upgraded']) || (int)($weapon['damage'] ?? 0) === 10) {
             $equipmentId->execute(['pulse_capacitor_mk2']);
@@ -619,6 +628,7 @@ try {
     }
 
     if ($action === 'cargo-jettison') {
+        mpEnsureFuelDrops($pdo);
         if ($_SERVER['REQUEST_METHOD']!=='POST') mpResponse(['error'=>'Use POST para descartar a carga.'],405);
         $input=mpInput();$cargo=is_array($input['cargo']??null)?$input['cargo']:[];$amounts=['iron'=>max(0,(int)($cargo['Ferro']??0)),'nickel'=>max(0,(int)($cargo['Niquel']??0)),'cobalt'=>max(0,(int)($cargo['Cobalto']??0))];$position=is_array($input['position']??null)?$input['position']:[];$dropX=isset($position['x'])?(float)$position['x']:null;$dropZ=isset($position['z'])?(float)$position['z']:null;
         if(array_sum($amounts)<1)mpResponse(['error'=>'Escolha ao menos 1 kg de minÃ©rio para descartar.'],400);
@@ -635,6 +645,7 @@ try {
 
     if ($action === 'combat-world') {
         mpEnsureTowSystem($pdo);
+        mpEnsureFuelDrops($pdo);
         $shipQuery = $pdo->prepare("SELECT s.id,s.user_id,s.pos_x,s.pos_z,s.hull_hp,s.docked_station_id FROM ships s LEFT JOIN ship_crew sc ON sc.ship_id=s.id AND sc.copilot_id=? AND sc.status='active' WHERE ((s.user_id=? AND NOT EXISTS (SELECT 1 FROM ship_crew own_crew WHERE own_crew.copilot_id=? AND own_crew.status='active')) OR sc.ship_id=s.id) AND s.is_active=1 LIMIT 1");
         $shipQuery->execute([$userId,$userId,$userId]);
         $ship = $shipQuery->fetch(PDO::FETCH_ASSOC);
@@ -649,7 +660,7 @@ try {
     if ($action === 'ship-attack') {
         mpEnsurePlayerKillerMarks($pdo);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error' => 'Use POST para atacar.'], 405);
-        $targetUserId = (int)(mpInput()['user_id'] ?? 0);
+        $attackInput=mpInput(); $targetUserId=(int)($attackInput['user_id']??0); $requestedKind=(string)($attackInput['kind']??''); $weaponCodes=['pulse'=>'pulse_cannon','ion'=>'ion_cannon','heavy'=>'heavy_plasma_cannon','singularity'=>'singularity_cannon'];
         if ($targetUserId < 1 || $targetUserId === $userId) mpResponse(['error' => 'Alvo invÃ¡lido.'], 400);
         $crewAttackQuery=$pdo->prepare("SELECT captain_id FROM ship_crew WHERE copilot_id=? AND status='active' LIMIT 1"); $crewAttackQuery->execute([$userId]);
         $attackerUserId=(int)($crewAttackQuery->fetchColumn() ?: $userId);
@@ -663,8 +674,9 @@ try {
         if (!$attacker || !$target || (int)$attacker['id']===(int)$target['id'] || $attacker['docked_station_id'] !== null || $target['docked_station_id'] !== null || (int)$attacker['hull_hp'] < 1 || (int)$target['hull_hp'] < 1) mpResponse(['error'=>'Uma das naves nÃ£o estÃ¡ disponÃ­vel para combate.'], 409);
         $distance = hypot((float)$attacker['pos_x']-(float)$target['pos_x'],(float)$attacker['pos_z']-(float)$target['pos_z']);
         if ($distance > 25000) mpResponse(['error'=>'Alvo fora do alcance das armas (25.000 km).'], 409);
-        $weaponQuery = $pdo->prepare("SELECT e.code,se.ammo_current FROM ship_equipment se JOIN equipment e ON e.id=se.equipment_id WHERE se.ship_id=? AND se.is_equipped=1 AND se.quantity>0 AND e.equipment_type='weapon' FOR UPDATE");
-        $weaponQuery->execute([(int)$attacker['id']]);
+        $requestedCode=$weaponCodes[$requestedKind]??'';
+        $weaponQuery = $pdo->prepare("SELECT e.id,e.code,se.ammo_current FROM ship_equipment se JOIN equipment e ON e.id=se.equipment_id WHERE se.ship_id=? AND se.is_equipped=1 AND se.quantity>0 AND e.equipment_type='weapon' AND (?='' OR e.code=?) ORDER BY e.id LIMIT 1 FOR UPDATE");
+        $weaponQuery->execute([(int)$attacker['id'],$requestedCode,$requestedCode]);
         $weapon = $weaponQuery->fetch(PDO::FETCH_ASSOC);
         if (!$weapon || !in_array($weapon['code'],['pulse_cannon','ion_cannon','heavy_plasma_cannon','singularity_cannon'],true)) mpResponse(['error'=>'Equipe um canhÃ£o na estaÃ§Ã£o antes de atacar.'], 409);
         if ((int)$weapon['ammo_current'] < 1) mpResponse(['error'=>'MuniÃ§Ã£o esgotada.'], 409);
@@ -675,7 +687,7 @@ try {
             if ($upgrade->fetchColumn()) $damage=10;
         }
         if (($attacker['ship_class']??'explorer')==='attack') $damage=(int)round($damage*1.35);
-        $pdo->prepare("UPDATE ship_equipment se JOIN equipment e ON e.id=se.equipment_id SET se.ammo_current=se.ammo_current-1 WHERE se.ship_id=? AND se.is_equipped=1 AND e.equipment_type='weapon'")->execute([(int)$attacker['id']]);
+        $pdo->prepare('UPDATE ship_equipment SET ammo_current=ammo_current-1 WHERE ship_id=? AND equipment_id=? AND ammo_current>0')->execute([(int)$attacker['id'],(int)$weapon['id']]);
         $hull=max(0,(int)$target['hull_hp']-$damage);
         $wreckId=null;
         if ($hull===0) {
@@ -697,8 +709,8 @@ try {
             $pdo->prepare("DELETE FROM ship_crew WHERE ship_id=?")->execute([(int)$target['id']]);
             $pdo->prepare("UPDATE ship_passengers SET status='cancelled' WHERE ship_id=? AND status='active'")->execute([(int)$target['id']]);
         } else $pdo->prepare('UPDATE ships SET hull_hp=? WHERE id=?')->execute([$hull,(int)$target['id']]);
-        $ammoQuery=$pdo->prepare("SELECT se.ammo_current FROM ship_equipment se JOIN equipment e ON e.id=se.equipment_id WHERE se.ship_id=? AND se.is_equipped=1 AND e.equipment_type='weapon' LIMIT 1");
-        $ammoQuery->execute([(int)$attacker['id']]);
+        $ammoQuery=$pdo->prepare("SELECT se.ammo_current FROM ship_equipment se JOIN equipment e ON e.id=se.equipment_id WHERE se.ship_id=? AND se.is_equipped=1 AND e.code=? LIMIT 1");
+        $ammoQuery->execute([(int)$attacker['id'],(string)$weapon['code']]);
         $ammo=(int)$ammoQuery->fetchColumn();
         $pdo->commit();
         mpResponse(['ok'=>true,'damage'=>$damage,'hull'=>$hull,'ammo'=>$ammo,'destroyed'=>$hull===0,'wreckId'=>$wreckId,'distance'=>round($distance)]);
@@ -880,7 +892,7 @@ try {
         $pdo->exec("UPDATE ship_rescue_requests SET status='cancelled' WHERE status='pending' AND created_at<DATE_SUB(NOW(),INTERVAL 10 MINUTE)");
         $finished=$pdo->query("SELECT r.id,r.target_ship_id,r.target_user_id,r.station_id,r.destination_x,r.destination_z,ss.name AS station_name FROM ship_rescue_requests r JOIN ships s ON s.id=r.target_ship_id JOIN space_stations ss ON ss.id=r.station_id WHERE r.status='active' AND TIMESTAMPDIFF(SECOND,r.accepted_at,NOW())>=r.duration_seconds FOR UPDATE")->fetchAll(PDO::FETCH_ASSOC);
         foreach($finished as $rescue){
-            $pdo->prepare('UPDATE ships SET pos_x=?+(id%2)*180,pos_y=0,pos_z=?+(id%3)*140,speed=0,docked_station_id=? WHERE id=? AND hull_hp>0 AND fuel_units<=0')->execute([(float)$rescue['destination_x'],(float)$rescue['destination_z'],(int)$rescue['station_id'],(int)$rescue['target_ship_id']]);
+            $pdo->prepare('UPDATE ships SET pos_x=?,pos_y=0,pos_z=?,speed=0,docked_station_id=? WHERE id=? AND hull_hp>0 AND fuel_units<=0')->execute([(float)$rescue['destination_x']+((int)$rescue['target_user_id']%2)*180,(float)$rescue['destination_z']+((int)$rescue['target_user_id']%3)*140,(int)$rescue['station_id'],(int)$rescue['target_ship_id']]);
             $pdo->prepare("UPDATE station_occupants SET station_id=? WHERE user_id=? AND mode='station'")->execute([(int)$rescue['station_id'],(int)$rescue['target_user_id']]);
             $pdo->prepare("UPDATE ship_rescue_requests SET status='completed',completed_at=NOW() WHERE id=? AND status='active'")->execute([(int)$rescue['id']]);
         }
@@ -909,13 +921,13 @@ try {
         $shipQuery=$pdo->prepare('SELECT id,hull_hp,ship_class,cargo_capacity_kg,iron_kg,nickel_kg,cobalt_kg,fuel_units,selected_weapon_code FROM ships WHERE user_id=? AND is_active=1 LIMIT 1 FOR UPDATE');
         $shipQuery->execute([$userId]); $ship=$shipQuery->fetch(PDO::FETCH_ASSOC);
         if (!$ship || (int)$ship['hull_hp']<1) { $pdo->rollBack(); mpResponse(['error'=>'Sua nave nÃ£o estÃ¡ operacional.'],409); }
-        $itemQuery=$pdo->prepare('SELECT e.id,e.damage,e.ammo_capacity,e.weight_kg,se.ammo_current FROM ship_equipment se JOIN equipment e ON e.id=se.equipment_id WHERE se.ship_id=? AND e.code=? AND se.quantity>0 FOR UPDATE');
+        $itemQuery=$pdo->prepare('SELECT e.id,e.damage,e.ammo_capacity,e.weight_kg,se.ammo_current,se.is_equipped FROM ship_equipment se JOIN equipment e ON e.id=se.equipment_id WHERE se.ship_id=? AND e.code=? AND se.quantity>0 FOR UPDATE');
         $itemQuery->execute([(int)$ship['id'],$code]); $item=$itemQuery->fetch(PDO::FETCH_ASSOC);
+        $mountedWeightQuery=$pdo->prepare("SELECT COALESCE(SUM(e.weight_kg),0) FROM ship_equipment se JOIN equipment e ON e.id=se.equipment_id WHERE se.ship_id=? AND se.is_equipped=1 AND e.equipment_type='weapon'");$mountedWeightQuery->execute([(int)$ship['id']]);$mountedWeight=(int)$mountedWeightQuery->fetchColumn();
         if (!$item) { $pdo->rollBack(); mpResponse(['error'=>'Esse canhÃ£o nÃ£o estÃ¡ no inventÃ¡rio da nave.'],409); }
         if ($mount && $ship['ship_class']==='freighter') { $pdo->rollBack(); mpResponse(['error'=>'O cargueiro Atlas nao aceita canhoes.'],409); }
-        if ($mount && (int)$ship['iron_kg']+(int)$ship['nickel_kg']+(int)$ship['cobalt_kg']+(int)$item['weight_kg']+(int)ceil((float)$ship['fuel_units']*0.5)>(int)$ship['cargo_capacity_kg']) { $pdo->rollBack(); mpResponse(['error'=>'A carga e o peso deste canhÃ£o excedem os 2.000 kg. Venda ou deposite minÃ©rio antes de montar.'],409); }
+        if ($mount && !(int)$item['is_equipped'] && (int)$ship['iron_kg']+(int)$ship['nickel_kg']+(int)$ship['cobalt_kg']+$mountedWeight+(int)$item['weight_kg']+(int)ceil((float)$ship['fuel_units']*0.5)>(int)$ship['cargo_capacity_kg']) { $pdo->rollBack(); mpResponse(['error'=>'A carga e o peso deste canhÃ£o excedem os 2.000 kg. Venda ou deposite minÃ©rio antes de montar.'],409); }
         if ($mount) {
-            $pdo->prepare("UPDATE ship_equipment se JOIN equipment e ON e.id=se.equipment_id SET se.is_equipped=0 WHERE se.ship_id=? AND e.equipment_type='weapon'")->execute([(int)$ship['id']]);
             $pdo->prepare('UPDATE ship_equipment SET is_equipped=1 WHERE ship_id=? AND equipment_id=?')->execute([(int)$ship['id'],(int)$item['id']]);
             $pdo->prepare('UPDATE ships SET selected_weapon_code=? WHERE id=?')->execute([$code,(int)$ship['id']]);
         } else {
@@ -924,8 +936,9 @@ try {
         }
         $upgradeQuery=$pdo->prepare("SELECT 1 FROM ship_equipment se JOIN equipment e ON e.id=se.equipment_id WHERE se.ship_id=? AND e.code='pulse_capacitor_mk2' AND se.quantity>0 LIMIT 1");
         $upgradeQuery->execute([(int)$ship['id']]); $upgraded=(bool)$upgradeQuery->fetchColumn();
+        $mountQuery=$pdo->prepare("SELECT e.code,se.quantity,se.ammo_current,e.ammo_capacity,e.damage FROM ship_equipment se JOIN equipment e ON e.id=se.equipment_id WHERE se.ship_id=? AND se.is_equipped=1 AND se.quantity>0 AND e.equipment_type='weapon' ORDER BY e.id");$mountQuery->execute([(int)$ship['id']]);$mountedWeapons=[];$kindMap=['pulse_cannon'=>'pulse','ion_cannon'=>'ion','heavy_plasma_cannon'=>'heavy','singularity_cannon'=>'singularity'];foreach($mountQuery->fetchAll(PDO::FETCH_ASSOC) as $mountedRow){$mountedKind=$kindMap[$mountedRow['code']]??null;if($mountedKind)for($copy=0;$copy<(int)$mountedRow['quantity'];$copy++)$mountedWeapons[]=['kind'=>$mountedKind,'ammo'=>(int)$mountedRow['ammo_current'],'maxAmmo'=>(int)$mountedRow['ammo_capacity'],'damage'=>(int)$mountedRow['damage']];}
         $pdo->commit();
-        mpResponse(['ok'=>true,'weapon'=>['installed'=>$mount,'kind'=>$kind,'damage'=>$kind==='pulse'&&$upgraded?10:(int)$item['damage'],'ammo'=>(int)$item['ammo_current'],'maxAmmo'=>(int)$item['ammo_capacity'],'weightKg'=>$mount?(int)$item['weight_kg']:0,'upgraded'=>$upgraded]]);
+        $primary=$mountedWeapons[0]??null;mpResponse(['ok'=>true,'weapon'=>['installed'=>(bool)$mountedWeapons,'kind'=>$primary['kind']??$kind,'damage'=>$primary?($primary['kind']==='pulse'&&$upgraded?10:(int)$primary['damage']):($kind==='pulse'&&$upgraded?10:(int)$item['damage']),'ammo'=>$primary['ammo']??(int)$item['ammo_current'],'maxAmmo'=>$primary['maxAmmo']??(int)$item['ammo_capacity'],'weightKg'=>$mount?(int)$item['weight_kg']:0,'upgraded'=>$upgraded,'mounts'=>$mountedWeapons]]);
     }
 
     if ($action === 'weapon-purchase') {

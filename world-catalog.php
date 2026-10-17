@@ -79,7 +79,7 @@ $bodies = [
     ['id'=>'polaris','name'=>'Farol Polaris','type'=>'Estação','x'=>69000,'y'=>0,'z'=>-32000,'r'=>200,'color'=>'#c7d8ef','texture'=>'station','design'=>7],
     ['id'=>'icaro','name'=>'Refúgio Ícaro','type'=>'Estação','x'=>-65000,'y'=>0,'z'=>-16000,'r'=>220,'color'=>'#7cebb0','texture'=>'station','design'=>8],
     ['id'=>'vesper','name'=>'Nexo Vésper','type'=>'Estação','x'=>5000,'y'=>0,'z'=>-63000,'r'=>210,'color'=>'#bde9fe','texture'=>'station','design'=>9],
-    ['id'=>'luna-base','name'=>'Base Lunar','type'=>'Estação','x'=>17080,'y'=>0,'z'=>-15000,'r'=>180,'color'=>'#d8e3ef','wallColor'=>'#e9edf1','texture'=>'station','design'=>23,'base'=>true],
+    ['id'=>'luna-base','name'=>'Base Lunar','type'=>'Estação','x'=>17000,'y'=>115,'z'=>-15000,'r'=>180,'color'=>'#d8e3ef','wallColor'=>'#e9edf1','texture'=>'station','design'=>23,'parent'=>'lua','base'=>true,'surfaceColor'=>'#b9c5d1','surfaceTexture'=>'moon'],
     ['id'=>'vortice','name'=>'Nébula Vórtice','type'=>'Estação','x'=>108000,'y'=>0,'z'=>-28000,'r'=>245,'color'=>'#8d7bff','texture'=>'station','design'=>10],
     ['id'=>'aegis','name'=>'Cidadela Aegis','type'=>'Estação','x'=>-110000,'y'=>0,'z'=>-25000,'r'=>260,'color'=>'#62e6d2','texture'=>'station','design'=>11],
     ['id'=>'járdim-io','name'=>'Jardim de Ío','type'=>'Estação','x'=>34000,'y'=>0,'z'=>112000,'r'=>250,'color'=>'#72f0ad','texture'=>'station','design'=>12],
@@ -112,6 +112,17 @@ $moonById = [];
 foreach ($bodies as $body) {
     $moonById[$body['id']] = $body;
 }
+foreach ($bodies as &$body) {
+    $parentId = $body['parent'] ?? null;
+    if (empty($body['base']) || !$parentId || !isset($moonById[$parentId])) {
+        continue;
+    }
+    $moon = $moonById[$parentId];
+    $body['x'] = $moon['x'];
+    $body['y'] = ($moon['y'] ?? 0) + $moon['r'] + 43;
+    $body['z'] = $moon['z'];
+}
+unset($body);
 foreach ($moonBaseDefinitions as $base) {
     $moon = $moonById[$base['moon']] ?? null;
     if (!$moon) {
@@ -119,9 +130,9 @@ foreach ($moonBaseDefinitions as $base) {
     }
     $bodies[] = [
         'id'=>$base['id'], 'name'=>$base['name'], 'type'=>'Estação', 'code'=>$base['id'],
-        'x'=>$moon['x'] + $moon['r'] + 8, 'y'=>0, 'z'=>$moon['z'], 'r'=>180,
+        'x'=>$moon['x'], 'y'=>($moon['y'] ?? 0) + $moon['r'] + 43, 'z'=>$moon['z'], 'r'=>180,
         'color'=>$base['color'], 'wallColor'=>$base['wallColor'], 'texture'=>'station', 'design'=>23,
-        'parent'=>$moon['id'], 'base'=>true,
+        'parent'=>$moon['id'], 'base'=>true, 'surfaceColor'=>$moon['color'], 'surfaceTexture'=>$moon['texture'],
     ];
 }
 
@@ -187,3 +198,5 @@ function worldGenerateIceAsteroids(int $count = 60): array
 }
 
 return ['bodies'=>$bodies, 'stationIds'=>$stationIds, 'missionBodyIds'=>$missionBodyIds];
+
+

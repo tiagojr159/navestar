@@ -33,7 +33,7 @@
     const tex=new THREE.CanvasTexture(canvas);
     tex.colorSpace=THREE.SRGBColorSpace;
     tex.needsUpdate=true;
-    tex.flipY=false;
+    tex.flipY=true;
     const img=new Image();
     img.decoding='async';
     img.onload=function(){

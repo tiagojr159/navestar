@@ -492,17 +492,17 @@ INSERT INTO space_stations (code, name, pos_x, pos_y, pos_z, radius, color, desi
   ('polaris', 'Farol Polaris', 69000, 0, -32000, 200, '#c7d8ef', 7, JSON_ARRAY('trade','weapons','ammunition','repairs')),
   ('icaro', 'Ref?gio ?caro', -65000, 0, -16000, 220, '#7cebb0', 8, JSON_ARRAY('trade','weapons','ammunition')),
   ('vesper', 'Nexo V?sper', 5000, 0, -63000, 210, '#bde9fe', 9, JSON_ARRAY('trade','weapons','ammunition'))
-  ,('luna-base', 'Base Lunar', 17080, 0, -15000, 180, '#d8e3ef', 23, JSON_ARRAY('trade','weapons','ammunition','repairs')),
-  ('ganymede-base', 'Base Ganimedes', 35084, 0, -33000, 180, '#9ccfc1', 23, JSON_ARRAY('trade','weapons','ammunition','repairs')),
-  ('titan-base', 'Base Titã', -32910, 0, -61000, 180, '#d6a05c', 23, JSON_ARRAY('trade','weapons','ammunition','repairs')),
-  ('callisto-base', 'Base Calisto', 23076, 0, -38000, 180, '#a59dbc', 23, JSON_ARRAY('trade','weapons','ammunition','repairs')),
-  ('io-base', 'Base Io', 41066, 0, -42000, 180, '#d98252', 23, JSON_ARRAY('trade','weapons','ammunition','repairs')),
-  ('europa-base', 'Base Europa', 25060, 0, -50000, 180, '#91c9df', 23, JSON_ARRAY('trade','weapons','ammunition','repairs')),
-  ('triton-base', 'Base Tritão', -32917, 0, -79000, 180, '#93d2c8', 23, JSON_ARRAY('trade','weapons','ammunition','repairs')),
-  ('titania-base', 'Base Titania', 53066, 0, -66000, 180, '#a9c58e', 23, JSON_ARRAY('trade','weapons','ammunition','repairs')),
-  ('rhea-base', 'Base Reia', -45354, 0, -61000, 180, '#d6a4b4', 23, JSON_ARRAY('trade','weapons','ammunition','repairs')),
-  ('oberon-base', 'Base Oberon', 49152, 0, -67700, 180, '#9bc0a7', 23, JSON_ARRAY('trade','weapons','ammunition','repairs')),
-  ('iapetus-base', 'Base Japeto', -49938, 0, -52000, 180, '#c5aa78', 23, JSON_ARRAY('trade','weapons','ammunition','repairs'))
+  ,('luna-base', 'Base Lunar', 17000, 115, -15000, 180, '#d8e3ef', 23, JSON_ARRAY('trade','weapons','ammunition','repairs')),
+  ('ganymede-base', 'Base Ganimedes', 35000, 119, -33000, 180, '#9ccfc1', 23, JSON_ARRAY('trade','weapons','ammunition','repairs')),
+  ('titan-base', 'Base Titã', -33000, 125, -61000, 180, '#d6a05c', 23, JSON_ARRAY('trade','weapons','ammunition','repairs')),
+  ('callisto-base', 'Base Calisto', 23000, 111, -38000, 180, '#a59dbc', 23, JSON_ARRAY('trade','weapons','ammunition','repairs')),
+  ('io-base', 'Base Io', 41000, 101, -42000, 180, '#d98252', 23, JSON_ARRAY('trade','weapons','ammunition','repairs')),
+  ('europa-base', 'Base Europa', 25000, 95, -50000, 180, '#91c9df', 23, JSON_ARRAY('trade','weapons','ammunition','repairs')),
+  ('triton-base', 'Base Tritão', -33000, 118, -79000, 180, '#93d2c8', 23, JSON_ARRAY('trade','weapons','ammunition','repairs')),
+  ('titania-base', 'Base Titania', 53000, 101, -66000, 180, '#a9c58e', 23, JSON_ARRAY('trade','weapons','ammunition','repairs')),
+  ('rhea-base', 'Base Reia', -45400, 81, -61000, 180, '#d6a4b4', 23, JSON_ARRAY('trade','weapons','ammunition','repairs')),
+  ('oberon-base', 'Base Oberon', 49100, 87, -67700, 180, '#9bc0a7', 23, JSON_ARRAY('trade','weapons','ammunition','repairs')),
+  ('iapetus-base', 'Base Japeto', -50000, 97, -52000, 180, '#c5aa78', 23, JSON_ARRAY('trade','weapons','ammunition','repairs'))
 ON DUPLICATE KEY UPDATE name=VALUES(name), pos_x=VALUES(pos_x), pos_y=VALUES(pos_y), pos_z=VALUES(pos_z), radius=VALUES(radius), color=VALUES(color), design=VALUES(design), services=VALUES(services);
 
 INSERT INTO asteroids (code, name, pos_x, pos_y, pos_z, radius, color) VALUES

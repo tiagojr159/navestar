@@ -198,7 +198,8 @@ window.createPassengerRoom3D=function(host){
       pilotName=pData.pilot||'PILOTO';
       drawPilotDisplays(pData);
       skin(pilotAvatar,pData.pilotAvatar||'pilot');
-      pilotAvatar.rotation.y=Math.PI;posePilot();const members=pData.occupants||data.occupants||[],pilotPerson=members.find(person=>Number(person.id)===Number(pData.pilotId));updateNameplate(pilotAvatar,{...(pilotPerson||{}),name:pilotName},2.4);
+      pilotAvatar.visible=!data.isLocalPilotCabin;
+      pilotAvatar.rotation.y=Math.PI;posePilot();const members=pData.occupants||data.occupants||[],pilotPerson=members.find(person=>Number(person.id)===Number(pData.pilotId));if(!data.isLocalPilotCabin)updateNameplate(pilotAvatar,{...(pilotPerson||{}),name:pilotName},2.4);else if(pilotAvatar.userData.nameplate)pilotAvatar.userData.nameplate.visible=false;
       const ids=new Set(),seenIds=new Set();const people=pData.occupants||data.occupants||[];const cockpitIds=new Set([Number(pData.pilotId)||0,Number(pData.copilotId)||0].filter(Boolean));otherPlayers.length=0;
       for(const p of people){const id=Number(p.id),role=String(p.mode||'').toLowerCase();if(!Number.isFinite(id)||id<=0||seenIds.has(id))continue;seenIds.add(id);if(id===Number(data.selfId)){skin(self,p.avatar);updateNameplate(self,p);if(!initializedYaw){heading=Number(p.roomYaw)||0;self.rotation.y=Math.PI-heading;walkIntent.facing=heading;initializedYaw=true;}continue;}if(cockpitIds.has(id)||role==='pilot'||role==='copilot')continue;
         ids.add(id);let obj=avatars.get(id);if(!obj){obj=new T.Group();room.add(obj);avatars.set(id,obj);}skin(obj,p.avatar);obj.userData.person=p;updateNameplate(obj,p);
