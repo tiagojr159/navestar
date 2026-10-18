@@ -66,10 +66,10 @@ while (true) {
             if (strlen($clients[$key]['handshake']) > 12000) { fclose($stream); unset($clients[$key]); continue; }
             $end=strpos($clients[$key]['handshake'], "\r\n\r\n"); if ($end===false) continue;
             $request=substr($clients[$key]['handshake'],0,$end); $tail=substr($clients[$key]['handshake'],$end+4); $headers=[];
-            foreach (explode("\r\n",$request) as $line) if (str_contains($line,':')) { [$name,$value]=explode(':',$line,2); $headers[strtolower(trim($name))]=trim($value); }
+            foreach (explode("\r\n",$request) as $line) if (strpos($line,':')!==false) { [$name,$value]=explode(':',$line,2); $headers[strtolower(trim($name))]=trim($value); }
             $host=parse_url('http://'.($headers['host']??''),PHP_URL_HOST); $origin=parse_url($headers['origin']??'',PHP_URL_HOST);
             $protocols=array_map('trim',explode(',', $headers['sec-websocket-protocol']??'')); $token='';
-            foreach ($protocols as $protocol) if (str_starts_with($protocol,'auth.')) $token=substr($protocol,5);
+            foreach ($protocols as $protocol) if (strpos($protocol,'auth.')===0) $token=substr($protocol,5);
             $uid=callSocketVerifyToken($token);
             if (!$uid || !$host || ($origin && strcasecmp($host,$origin)!==0) || empty($headers['sec-websocket-key'])) { @fwrite($stream,"HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n"); fclose($stream); unset($clients[$key]); continue; }
             $accept=base64_encode(sha1($headers['sec-websocket-key'].'258EAFA5-E914-47DA-95CA-C5AB0DC85B11',true));

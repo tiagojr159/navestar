@@ -62,7 +62,7 @@
       #stationCall.mc-floating-window.open:not(.video),#stationRoomCall.mc-floating-window.open:not(.video){inset:0!important;display:grid!important;place-items:center!important;padding:10px!important;z-index:155!important;pointer-events:auto!important}
       #stationCall.mc-floating-window .call-card,#stationRoomCall.mc-floating-window .room-call-card{position:relative!important;width:min(560px,calc(100vw - 20px))!important;max-height:82dvh!important;overflow:auto!important}
       #stationCall.mc-floating-window .call-head,#stationRoomCall.mc-floating-window header{cursor:move;touch-action:none;user-select:none}
-      #callOverlay.mc-floating-window.open,#pilotOverlay.mc-floating-window.open{z-index:155!important}
+      #callOverlay.mc-floating-window.open,#pilotOverlay.mc-floating-window.open{z-index:300!important}
       #callOverlay.mc-floating-window .call-card,#pilotOverlay.mc-floating-window .pilot-card{position:relative;cursor:default}
       #callOverlay.mc-floating-window #callTitle,#pilotOverlay.mc-floating-window .pilot-titlebar{cursor:move;touch-action:none;user-select:none}
     }
