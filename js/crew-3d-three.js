@@ -127,16 +127,17 @@
       box(x,7.53,z,.35,.09,4.1,M.black,scene,false);
     }
   }
-  // A porta fica aberta para o corredor que conecta a sala ao segundo habitat.
-  for(const x of [-8.02,8.02])box(x,3.9,18.22,6.4,7.8,.4,M.shell);
-  for(const x of [-10.7,-5.35,5.35,10.7])box(x,4.25,17.93,.35,6.7,.14,M.edge);
-  box(0,7.08,18.22,5.35,1.44,.4,M.shell);
+  // Divisória do corredor: preservada nas estações e escondida na base aberta.
+  const stationDoorFrame=new THREE.Group();scene.add(stationDoorFrame);
+  for(const x of [-8.02,8.02])box(x,3.9,18.22,6.4,7.8,.4,M.shell,stationDoorFrame);
+  for(const x of [-10.7,-5.35,5.35,10.7])box(x,4.25,17.93,.35,6.7,.14,M.edge,stationDoorFrame);
+  box(0,7.08,18.22,5.35,1.44,.4,M.shell,stationDoorFrame);
   for(const x of [-2.68,2.68]){
-    box(x,3.52,18.30,.14,6.15,.32,M.edge);
-    box(x-Math.sign(x)*.11,3.55,18.10,.035,5.65,.04,M.cyan,scene,false);
+    box(x,3.52,18.30,.14,6.15,.32,M.edge,stationDoorFrame);
+    box(x-Math.sign(x)*.11,3.55,18.10,.035,5.65,.04,M.cyan,stationDoorFrame,false);
   }
-  box(0,6.58,18.30,5.48,.12,.34,M.edge);
-  box(0,6.42,18.10,5.25,.035,.04,M.cyan,scene,false);
+  box(0,6.58,18.30,5.48,.12,.34,M.edge,stationDoorFrame);
+  box(0,6.42,18.10,5.25,.035,.04,M.cyan,stationDoorFrame,false);
 
   // -----------------------------------------------------------------
   // JANELA PANORÃ‚MICA: VÃƒO REAL, VIDRO, MOLDURA, PROTEÃ‡ÃƒO
@@ -274,7 +275,7 @@
     c.fillStyle='#e4b478';c.font='25px monospace';c.fillText('OBSERVATÃ“RIO 07  /  ABERTO',w/2,131);
   });
   const notice=new THREE.Mesh(new THREE.PlaneGeometry(12.3,1.92),new THREE.MeshBasicMaterial({map:wallNotice,toneMapped:false}));notice.position.set(0,5.75,64.015);notice.rotation.y=Math.PI;scene.add(notice);
-  function refreshLunarTitle(stationName,stationCode){const base=isMoonBase(stationCode),style=baseWallPalettes[stationCode]||{accent:'#7febff'},c=wallNotice.image.getContext('2d'),title=String(stationName||'ESTACAO ESPACIAL').toLocaleUpperCase('pt-BR');c.fillStyle='#071b2e';c.fillRect(0,0,768,190);c.strokeStyle=style.accent;c.lineWidth=6;c.strokeRect(3,3,762,184);c.fillStyle=style.accent;c.textAlign='center';let font=58;c.font='bold '+font+'px sans-serif';while(c.measureText(title).width>710&&font>34){font-=2;c.font='bold '+font+'px sans-serif'}c.fillText(title,384,82);c.fillStyle='#c6e6ee';c.font='25px monospace';c.fillText(base?'BASE DE SUPERFICIE / 10 MODULOS':'ESTACAO ESPACIAL / SETOR HABITADO',384,143);wallNotice.needsUpdate=true}
+  function refreshLunarTitle(stationName,stationCode){const base=isMoonBase(stationCode),style=baseWallPalettes[stationCode]||{accent:'#7febff'},c=wallNotice.image.getContext('2d'),title=String(stationName||'ESTACAO ESPACIAL').toLocaleUpperCase('pt-BR');c.fillStyle='#071b2e';c.fillRect(0,0,768,190);c.strokeStyle=style.accent;c.lineWidth=6;c.strokeRect(3,3,762,184);c.fillStyle=style.accent;c.textAlign='center';let font=58;c.font='bold '+font+'px sans-serif';while(c.measureText(title).width>710&&font>34){font-=2;c.font='bold '+font+'px sans-serif'}c.fillText(title,384,82);c.fillStyle='#c6e6ee';c.font='25px monospace';c.fillText(base?'SALAO UNICO / BASE DE SUPERFICIE':'ESTACAO ESPACIAL / SETOR HABITADO',384,143);wallNotice.needsUpdate=true}
   // ColisÃµes: vidro e paredes delimitam completamente a circulaÃ§Ã£o.
   // O espaÃ§o central permanece livre para explorar a sala inteira.
 
@@ -284,22 +285,24 @@
   // Open corridor and a second connected room built with the station modules.
   const extensionCount=3*7+10*13;
   const extensionFloor=new THREE.InstancedMesh(new THREE.BoxGeometry(2.07,.06,2.18),M.tile,extensionCount);
+  const extensionFloorGroup=new THREE.Group();extensionFloorGroup.add(extensionFloor);scene.add(extensionFloorGroup);
   let extensionIndex=0,extensionMatrix=new THREE.Matrix4();
   function addExtensionTile(x,z){extensionMatrix.makeTranslation(x,.04,z);extensionFloor.setMatrixAt(extensionIndex,extensionMatrix);const shade=new THREE.Color().setHSL(.575+(rnd()-.5)*.018,.28+(rnd()-.5)*.1,.16+rnd()*.075);if(extensionIndex%5===0)shade.multiplyScalar(1.18);extensionFloor.setColorAt(extensionIndex,shade);extensionIndex++}
   for(let row=0;row<7;row++)for(let col=0;col<3;col++)addExtensionTile((col-1)*1.95,19.35+row*2.18);
   for(let row=0;row<13;row++)for(let col=0;col<10;col++)addExtensionTile((col-4.5)*2.2,35.25+row*2.18);
-  extensionFloor.instanceMatrix.needsUpdate=true;extensionFloor.receiveShadow=true;scene.add(extensionFloor);
+  extensionFloor.instanceMatrix.needsUpdate=true;extensionFloor.receiveShadow=true;
+  const corridorShell=new THREE.Group();scene.add(corridorShell);
   for(const side of [-1,1]){
     const x=side*3.18;
-    box(x,3.9,26.1,.30,7.8,15.8,M.shell);
-    box(side*3.00,4.05,26.1,.07,5.8,14.8,M.panel);
-    for(let z=19.5;z<=32.8;z+=3.25){box(side*2.88,3.82,z,.18,6.9,.32,M.edge);box(side*2.76,3.85,z,.045,5.3,.06,z%2?M.cyan:M.blue,scene,false);box(side*2.83,1.15,z,.065,.11,2.7,M.orange,scene,false)}
+    box(x,3.9,26.1,.30,7.8,15.8,M.shell,corridorShell);
+    box(side*3.00,4.05,26.1,.07,5.8,14.8,M.panel,corridorShell);
+    for(let z=19.5;z<=32.8;z+=3.25){box(side*2.88,3.82,z,.18,6.9,.32,M.edge,corridorShell);box(side*2.76,3.85,z,.045,5.3,.06,z%2?M.cyan:M.blue,corridorShell,false);box(side*2.83,1.15,z,.065,.11,2.7,M.orange,corridorShell,false)}
   }
-  box(0,7.67,26.1,6.3,.24,15.9,M.shell);
-  for(let z=20;z<=32;z+=4){box(0,7.35,z,5.9,.24,.34,M.edge);box(0,7.18,z,4.0,.04,.07,M.cyan,scene,false)}
-  box(0,-.32,26.1,6.25,.68,15.8,M.black);
+  box(0,7.67,26.1,6.3,.24,15.9,M.shell,corridorShell);
+  for(let z=20;z<=32;z+=4){box(0,7.35,z,5.9,.24,.34,M.edge,corridorShell);box(0,7.18,z,4.0,.04,.07,M.cyan,corridorShell,false)}
+  box(0,-.32,26.1,6.25,.68,15.8,M.black,corridorShell);
   light(0,6.2,26.1,0x39bfff,16,13);
-  for(const side of [-1,1])box(side*2.84,.15,26.1,.08,.10,15.4,M.cyan,scene,false);
+  for(const side of [-1,1])box(side*2.84,.15,26.1,.08,.10,15.4,M.cyan,corridorShell,false);
   const room2Front=34.05,room2Back=64.25,room2Center=(room2Front+room2Back)/2,room2Length=room2Back-room2Front;
   box(0,-.32,room2Center,22.65,.68,room2Length+.5,M.black);
   for(const side of [-1,1]){
@@ -311,9 +314,10 @@
     for(const z of [40.65,52.40]){const pane=new THREE.Mesh(new THREE.PlaneGeometry(4.05,3.95),new THREE.MeshPhysicalMaterial({color:0x2689b5,metalness:.08,roughness:.05,transparent:true,opacity:.055,depthWrite:false,side:THREE.DoubleSide}));pane.position.set(side*11.045,4,z);pane.rotation.y=side*Math.PI/2;scene.add(pane);for(const y of [1.98,6.02])box(side*11.02,y,z,.08,.08,4.25,y<3?M.edge:M.cyan,scene,false)}
     for(let z=36.5;z<63;z+=5){box(side*10.92,4.25,z,.14,5.6,.32,M.edge);box(side*10.75,4.45,z,.04,4.4,.06,M.blue,scene,false)}
   }
-  for(const x of [-6.93,6.93])box(x,3.9,room2Front,8.5,7.8,.4,M.shell);
-  box(0,7.08,room2Front,5.35,1.44,.4,M.shell);
-  for(const x of [-2.68,2.68]){box(x,3.52,room2Front,.14,6.15,.32,M.edge);box(x-Math.sign(x)*.11,3.55,room2Front-.2,.035,5.65,.04,M.cyan,scene,false)}
+  const room2DoorFrame=new THREE.Group();scene.add(room2DoorFrame);
+  for(const x of [-6.93,6.93])box(x,3.9,room2Front,8.5,7.8,.4,M.shell,room2DoorFrame);
+  box(0,7.08,room2Front,5.35,1.44,.4,M.shell,room2DoorFrame);
+  for(const x of [-2.68,2.68]){box(x,3.52,room2Front,.14,6.15,.32,M.edge,room2DoorFrame);box(x-Math.sign(x)*.11,3.55,room2Front-.2,.035,5.65,.04,M.cyan,room2DoorFrame,false)}
   box(0,3.9,room2Back,22.45,7.8,.4,M.shell);
   for(const x of [-9.5,-5.8,5.8,9.5])box(x,4.25,room2Back-.24,.35,6.7,.14,M.edge);
   box(0,7.67,room2Center,22.8,.23,room2Length,M.shell);
@@ -322,22 +326,21 @@
   bench(-8.35,41.6,-1);bench(8.35,55,1);bench(-8.35,59.2,-1);bench(8.35,36.8,1);
   kiosk(-9.28,48,-1);kiosk(9.28,57.2,1);plant(-9.62,61.7);plant(9.62,35.8);
 
-  const lunarRooms=['AIRLOCK / DESCOMPRESSAO','CENTRO DE COMANDO','OBSERVATORIO LUNAR','LABORATORIO GEOLOGICO','OFICINA DE MANUTENCAO','ENFERMARIA','ALOJAMENTO DA TRIPULACAO','ESTUFA HIDROPONICA','COMUNICACOES','HANGAR DE SUPERFICIE'];
+  const lunarRooms=['SALAO PRINCIPAL'];
   const lunarRoomPartitions=[];
   const lunarBaseInterior=new THREE.Group();lunarBaseInterior.name='INTERIOR_BASE_LUNAR';lunarBaseInterior.visible=false;scene.add(lunarBaseInterior);
   function lunarRoomSign(label){return textTexture(640,150,(c,w,h)=>{c.fillStyle='#061927';c.fillRect(0,0,w,h);c.strokeStyle='#54d9e8';c.lineWidth=5;c.strokeRect(3,3,w-6,h-6);c.fillStyle='#82e8f2';c.font='bold 25px monospace';c.textAlign='center';c.fillText('BASE / MODULO',w/2,42);c.fillStyle='#f1c887';c.font='bold 32px monospace';c.fillText(label,w/2,108)})}
-  for(let index=0;index<10;index++){
-    const centerZ=ROOM.front+(index+.5)*(ROOM.back-ROOM.front)/10, narrow=centerZ>18&&centerZ<34,signX=narrow?-2.9:-10.25;
-    const sign=new THREE.Mesh(new THREE.PlaneGeometry(2.9,.72),new THREE.MeshBasicMaterial({map:lunarRoomSign(lunarRooms[index]),toneMapped:false,side:THREE.DoubleSide}));sign.position.set(signX,narrow?6.25:5.85,centerZ);sign.rotation.y=Math.PI/2;lunarBaseInterior.add(sign);
-    if(index===0)continue;
-    const wallZ=ROOM.front+index*(ROOM.back-ROOM.front)/10;lunarRoomPartitions.push(wallZ);
-    for(const side of [-1,1])box(side*6.63,3.83,wallZ,8.24,7.55,.34,M.shell,lunarBaseInterior);
-    for(const side of [-1,1])box(side*2.5,3.08,wallZ,.28,6.1,.42,M.edge,lunarBaseInterior);
-    box(0,6.38,wallZ,4.75,1.02,.42,M.edge,lunarBaseInterior);
-    box(0,6.38,wallZ-.23,3.8,.74,.06,M.blue,lunarBaseInterior,false);box(0,6.38,wallZ+.23,3.8,.74,.06,M.blue,lunarBaseInterior,false);
-    for(const side of [-1,1])box(side*2.5,3.1,wallZ-.24,.08,5.65,.05,M.cyan,lunarBaseInterior,false);
-    box(0,.15,wallZ,4.8,.10,.68,M.cyan,lunarBaseInterior,false);const roomLight=new THREE.PointLight(0x44d9e8,2.2,7,2);roomLight.position.set(0,6.9,wallZ);lunarBaseInterior.add(roomLight);
+  const openBaseFloor=new THREE.Group();lunarBaseInterior.add(openBaseFloor);
+  box(0,-.32,26.1,22.65,.68,15.8,M.black,openBaseFloor);
+  const openFloorTiles=new THREE.InstancedMesh(new THREE.BoxGeometry(2.07,.06,2.18),M.tile,10*21),openFloorMatrix=new THREE.Matrix4();let openFloorIndex=0;
+  for(let row=0;row<21;row++)for(let col=0;col<10;col++){const x=(col-4.5)*2.2,z=19.35+row*2.18;openFloorMatrix.makeTranslation(x,.04,z);openFloorTiles.setMatrixAt(openFloorIndex,openFloorMatrix);const shade=new THREE.Color().setHSL(.575+(rnd()-.5)*.018,.28+(rnd()-.5)*.1,.16+rnd()*.075);if(openFloorIndex%5===0)shade.multiplyScalar(1.18);openFloorTiles.setColorAt(openFloorIndex++,shade)}openFloorTiles.instanceMatrix.needsUpdate=true;openFloorTiles.receiveShadow=true;openBaseFloor.add(openFloorTiles);
+  for(const side of [-1,1]){
+    const x=side*11.27;box(x,3.88,26.1,.34,7.8,15.8,M.shell,lunarBaseInterior);box(side*11.015,4.15,26.1,.075,5.8,15.1,M.panel,lunarBaseInterior);
+    for(let z=20;z<=32;z+=4){box(side*10.87,3.76,z,.26,7.2,.41,M.edge,lunarBaseInterior);box(side*10.69,4.35,z,.065,5.4,.12,z%2?M.cyan:M.blue,lunarBaseInterior,false);box(side*10.89,6.89,z+1.8,.10,.11,3.1,M.orange,lunarBaseInterior,false)}
   }
+  box(0,7.67,26.1,22.8,.23,15.9,M.shell,lunarBaseInterior);
+  for(let z=20;z<=32;z+=4){box(0,7.22,z,22.2,.52,.39,M.edge,lunarBaseInterior,false);box(0,6.98,z,19.8,.045,.09,M.black,lunarBaseInterior);box(0,6.95,z,12.8,.027,.044,M.blue,lunarBaseInterior,false)}
+  const mainHallSign=new THREE.Mesh(new THREE.PlaneGeometry(3.7,.85),new THREE.MeshBasicMaterial({map:lunarRoomSign(lunarRooms[0]),toneMapped:false,side:THREE.DoubleSide}));mainHallSign.position.set(-10.22,5.8,25.6);mainHallSign.rotation.y=Math.PI/2;lunarBaseInterior.add(mainHallSign);
   const stationGeometry=scene.children.slice();stationGeometry.push(lunarBaseInterior);
   const robot=new THREE.Group();robot.position.set(0,0,7.6);scene.add(robot);
   const avatarMaterials=new Map();
@@ -631,11 +634,11 @@
       const remoteRobots=new Map(),raycaster=new THREE.Raycaster(),cameraRaycaster=new THREE.Raycaster(),pointer=new THREE.Vector2(),clock=new THREE.Clock();let selfHeadingLoaded=false,avatarYaw=0;
       let renderActive=false,frameHandle=0,lastMoveAt=0,walkPhase=0,remoteMoveAt=new Map(),lastRenderAt=0;
       function mapRoom(roomX,roomZ){return{x:(Number(roomX)-50)*.244,z:(Number(roomZ)-66.5)*.434}}
-      function canOccupy(roomX,roomZ,originX=null,originZ=null){if(passengerMode)return passengerCanOccupy(roomX,roomZ);const p=mapRoom(roomX,roomZ),origin=originX===null?null:mapRoom(originX,originZ),radius=.42;if(p.x< -ROOM.halfW+radius||p.x>ROOM.halfW-radius||p.z<ROOM.front+radius||p.z>ROOM.back-radius)return false;if(p.z>17.75&&p.z<34.45&&Math.abs(p.x)>2.22)return false;if(isMoonBase(currentData.station?.code)&&lunarRoomPartitions.some(z=>Math.abs(p.z-z)<.34&&Math.abs(p.x)>2.22))return false;for(const obstacle of obstacles){const cx=Math.max(obstacle.minX,Math.min(p.x,obstacle.maxX)),cz=Math.max(obstacle.minZ,Math.min(p.z,obstacle.maxZ));if((p.x-cx)**2+(p.z-cz)**2<radius*radius)return false}for(const avatar of remoteRobots.values()){const other=avatar.userData.target||avatar.position,dist=Math.hypot(p.x-other.x,p.z-other.z),start=origin?Math.hypot(origin.x-other.x,origin.z-other.z):Infinity;if(dist<.92&&(start>=.92||dist<start-.002))return false}return true}
+      function canOccupy(roomX,roomZ,originX=null,originZ=null){if(passengerMode)return passengerCanOccupy(roomX,roomZ);const p=mapRoom(roomX,roomZ),origin=originX===null?null:mapRoom(originX,originZ),radius=.42,base=isMoonBase(currentData.station?.code);if(p.x< -ROOM.halfW+radius||p.x>ROOM.halfW-radius||p.z<ROOM.front+radius||p.z>ROOM.back-radius)return false;if(!base&&p.z>17.75&&p.z<34.45&&Math.abs(p.x)>2.22)return false;if(base&&lunarRoomPartitions.some(z=>Math.abs(p.z-z)<.34&&Math.abs(p.x)>2.22))return false;for(const obstacle of obstacles){const cx=Math.max(obstacle.minX,Math.min(p.x,obstacle.maxX)),cz=Math.max(obstacle.minZ,Math.min(p.z,obstacle.maxZ));if((p.x-cx)**2+(p.z-cz)**2<radius*radius)return false}for(const avatar of remoteRobots.values()){const other=avatar.userData.target||avatar.position,dist=Math.hypot(p.x-other.x,p.z-other.z),start=origin?Math.hypot(origin.x-other.x,origin.z-other.z):Infinity;if(dist<.92&&(start>=.92||dist<start-.002))return false}return true}
       function syncPeople(data){const seen=new Set();for(const person of data.occupants||[]){const id=Number(person.id);if(id===Number(data.selfId)){const code=person.avatar||'captain';if(avatarIndex(code)!==avatarIndex(currentAvatarCode))setAvatar(robot,code,true);if(!selfHeadingLoaded){yaw=Number(person.roomYaw)||0;avatarYaw=yaw;robot.rotation.y=-avatarYaw;selfHeadingLoaded=true}continue}const p=passengerMode?cabinPosition(Number(person.roomX)||50,Number(person.roomZ)||75):mapRoom(Number(person.roomX)||50,Number(person.roomZ)||75);seen.add(id);let avatar=remoteRobots.get(id);if(!avatar){avatar=new THREE.Group();scene.add(avatar);remoteRobots.set(id,avatar)}setAvatar(avatar,person.avatar||'captain');avatar.userData.crewPerson=person;const target=avatar.userData.target||new THREE.Vector3();target.set(p.x,.12,p.z);avatar.userData.target=target;avatar.userData.roomYaw=Number(person.roomYaw)||0;remoteMoveAt.set(id,performance.now())}for(const [id,avatar] of remoteRobots){if(!seen.has(id)){scene.remove(avatar);avatar.traverse(o=>{if(o.geometry)o.geometry.dispose()});remoteRobots.delete(id);remoteMoveAt.delete(id)}}}
-      function update(data){currentData=data||{};setPassengerMode(!!data.isPassengerCabin);const wallStyle=baseWallPalettes[data.station?.code];M.shell.color.setHex(wallStyle?.shell??0x172432);M.panel.color.setHex(wallStyle?.panel??0x223647);M.edge.color.setHex(wallStyle?.edge??0x354b5d);lunarBaseInterior.visible=!data.isPassengerCabin&&isMoonBase(data.station?.code);if(passengerMode&&passengerPilot){const pilotCode=data.passenger?.pilotAvatar||'pilot';passengerPilotModel=setAvatar(passengerPilot,pilotCode);passengerPilotModel.legs.forEach(({part})=>{part.visible=false});passengerPilotModel.arms.forEach(({part})=>{part.visible=false});passengerPilot.userData.pilotName=data.passenger?.pilot||'Piloto'}const cabinOccupants=data.passenger?.occupants||data.occupants||[];const cockpitIds=new Set([Number(data.passenger?.pilotId)||0,Number(data.passenger?.copilotId)||0]);const roster=passengerMode?cabinOccupants.filter(person=>!cockpitIds.has(Number(person.id))):cabinOccupants;const renderData={...data,occupants:roster,ships:data.ships||[]};board.visible=!data.isPassengerCabin;refreshDockBoard(renderData.ships,renderData.station?.name,renderData.occupants,renderData.station?.code);syncPeople(renderData);refreshLunarTitle(data.station?.name,data.station?.code)}
+      function update(data){currentData=data||{};setPassengerMode(!!data.isPassengerCabin);const wallStyle=baseWallPalettes[data.station?.code],isBase=!data.isPassengerCabin&&isMoonBase(data.station?.code);M.shell.color.setHex(wallStyle?.shell??0x172432);M.panel.color.setHex(wallStyle?.panel??0x223647);M.edge.color.setHex(wallStyle?.edge??0x354b5d);lunarBaseInterior.visible=isBase;stationDoorFrame.visible=!isBase;corridorShell.visible=!isBase;room2DoorFrame.visible=!isBase;extensionFloorGroup.visible=!isBase;if(passengerMode&&passengerPilot){const pilotCode=data.passenger?.pilotAvatar||'pilot';passengerPilotModel=setAvatar(passengerPilot,pilotCode);passengerPilotModel.legs.forEach(({part})=>{part.visible=false});passengerPilotModel.arms.forEach(({part})=>{part.visible=false});passengerPilot.userData.pilotName=data.passenger?.pilot||'Piloto'}const cabinOccupants=data.passenger?.occupants||data.occupants||[];const cockpitIds=new Set([Number(data.passenger?.pilotId)||0,Number(data.passenger?.copilotId)||0]);const roster=passengerMode?cabinOccupants.filter(person=>!cockpitIds.has(Number(person.id))):cabinOccupants;const renderData={...data,occupants:roster,ships:data.ships||[]};board.visible=!data.isPassengerCabin;refreshDockBoard(renderData.ships,renderData.station?.name,renderData.occupants,renderData.station?.code);syncPeople(renderData);refreshLunarTitle(data.station?.name,data.station?.code)}
       function setPlayerPosition(roomX,roomZ,heading=null){const p=passengerMode?cabinPosition(roomX,roomZ):mapRoom(roomX,roomZ),dx=p.x-robot.position.x,dz=p.z-robot.position.z;if(Math.hypot(dx,dz)>.002)lastMoveAt=performance.now();robot.position.set(p.x,.12,p.z);if(heading!==null&&heading!==undefined&&Number.isFinite(Number(heading)))avatarYaw=Number(heading);robot.rotation.y=-avatarYaw}
-      function rotateCamera(dt){const forward=new THREE.Vector3(Math.sin(yaw),0,-Math.cos(yaw));if(passengerMode){const desiredCamera=robot.position.clone().add(new THREE.Vector3(0,1.72,0));const aim=desiredCamera.clone().addScaledVector(forward,4);aim.y+=pitch*3;camera.position.lerp(desiredCamera,1-Math.exp(-12*dt));camera.lookAt(aim);return}const aim=robot.position.clone().add(new THREE.Vector3(0,1.28+pitch*.35,0)).addScaledVector(forward,.35),cameraOrigin=robot.position.clone().add(new THREE.Vector3(0,1.35,0)),distance=5.55*Math.cos(pitch*.8),desiredCamera=robot.position.clone().addScaledVector(forward,-distance);desiredCamera.y=2.91+pitch*3.2;desiredCamera.x=THREE.MathUtils.clamp(desiredCamera.x,-10.32,10.32);desiredCamera.z=THREE.MathUtils.clamp(desiredCamera.z,ROOM.front+1.26,ROOM.back-1.26);if(desiredCamera.z>17.85&&desiredCamera.z<34.35)desiredCamera.x=THREE.MathUtils.clamp(desiredCamera.x,-2.65,2.65);desiredCamera.y=THREE.MathUtils.clamp(desiredCamera.y,1.9,5.7);const cameraDirection=desiredCamera.clone().sub(cameraOrigin),desiredDistance=cameraDirection.length();cameraDirection.normalize();cameraRaycaster.set(cameraOrigin,cameraDirection);cameraRaycaster.far=desiredDistance;const obstruction=cameraRaycaster.intersectObjects(stationGeometry,true).find(hit=>hit.distance>.4);if(obstruction)desiredCamera.copy(cameraOrigin).addScaledVector(cameraDirection,Math.max(.12,obstruction.distance-.42));camera.position.lerp(desiredCamera,1-Math.exp(-9*dt));camera.lookAt(aim)}
+      function rotateCamera(dt){const forward=new THREE.Vector3(Math.sin(yaw),0,-Math.cos(yaw));if(passengerMode){const desiredCamera=robot.position.clone().add(new THREE.Vector3(0,1.72,0));const aim=desiredCamera.clone().addScaledVector(forward,4);aim.y+=pitch*3;camera.position.lerp(desiredCamera,1-Math.exp(-12*dt));camera.lookAt(aim);return}const aim=robot.position.clone().add(new THREE.Vector3(0,1.28+pitch*.35,0)).addScaledVector(forward,.35),cameraOrigin=robot.position.clone().add(new THREE.Vector3(0,1.35,0)),distance=5.55*Math.cos(pitch*.8),desiredCamera=robot.position.clone().addScaledVector(forward,-distance);desiredCamera.y=2.91+pitch*3.2;desiredCamera.x=THREE.MathUtils.clamp(desiredCamera.x,-10.32,10.32);desiredCamera.z=THREE.MathUtils.clamp(desiredCamera.z,ROOM.front+1.26,ROOM.back-1.26);if(!isMoonBase(currentData.station?.code)&&desiredCamera.z>17.85&&desiredCamera.z<34.35)desiredCamera.x=THREE.MathUtils.clamp(desiredCamera.x,-2.65,2.65);desiredCamera.y=THREE.MathUtils.clamp(desiredCamera.y,1.9,5.7);const cameraDirection=desiredCamera.clone().sub(cameraOrigin),desiredDistance=cameraDirection.length();cameraDirection.normalize();cameraRaycaster.set(cameraOrigin,cameraDirection);cameraRaycaster.far=desiredDistance;const obstruction=cameraRaycaster.intersectObjects(stationGeometry,true).find(hit=>hit.distance>.4);if(obstruction)desiredCamera.copy(cameraOrigin).addScaledVector(cameraDirection,Math.max(.12,obstruction.distance-.42));camera.position.lerp(desiredCamera,1-Math.exp(-9*dt));camera.lookAt(aim)}
       function resize(){const r=container.getBoundingClientRect(),w=Math.max(1,r.width),h=Math.max(1,r.height);renderer.setSize(w,h,false);renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.15));camera.aspect=w/h;camera.fov=passengerMode?THREE.MathUtils.radToDeg(2*Math.atan(Math.tan(THREE.MathUtils.degToRad(70)/2)*1.36/camera.aspect)):69;camera.updateProjectionMatrix()}
       function frame(){if(!renderActive)return;frameHandle=requestAnimationFrame(frame);const renderNow=performance.now();if(renderNow-lastRenderAt<33)return;const dt=Math.min(clock.getDelta()||.016,.05),now=clock.elapsedTime,moving=renderNow-lastMoveAt<320;lastRenderAt=renderNow;walkPhase+=dt*11.5;const energy=moving?1:0;if(robotVisual)robotVisual.position.y=moving?Math.abs(Math.sin(walkPhase))*.035:Math.sin(now*1.9)*.012;arms.forEach(({part,s})=>{part.rotation.x=moving?Math.sin(walkPhase+s*Math.PI/2+Math.PI/2)*.58:Math.sin(now*1.5+s)*.03});legs.forEach(({part,s})=>{part.rotation.x=moving?Math.sin(walkPhase+(s>0?Math.PI:0))*.62:0});if(passengerMode&&passengerPilotModel){passengerPilotModel.arms.forEach(({part,s})=>{part.rotation.x=-.72+Math.sin(now*2.1+s)*.10;part.rotation.z=s*.16+Math.sin(now*1.45+s)*.045});passengerPilotModel.visual.position.y=Math.sin(now*1.8)*.008}robotShadow.material.opacity=.21+(1-energy)*.06;for(const [id,avatar] of remoteRobots){if(avatar.userData.target)avatar.position.lerp(avatar.userData.target,1-Math.exp(-12*dt));avatar.rotation.y=-(avatar.userData.roomYaw||0)}rotateCamera(dt);renderer.render(scene,camera)}
       function setActive(value){if(renderActive===!!value)return;renderActive=!!value;if(renderActive){resize();camera.position.set(robot.position.x,passengerMode?1.72:3.38,robot.position.z+(passengerMode?0:6.1));clock.start();frameHandle=requestAnimationFrame(frame)}else if(frameHandle)cancelAnimationFrame(frameHandle)}

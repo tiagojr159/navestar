@@ -1,6 +1,7 @@
 Sinalização de chamadas ativa na porta 8090
 
-Fatal error: Uncaught Error: Call to undefined function str_contains() in C:\xampp\htdocs\nave\call-socket-server.php:69
+Fatal error: Uncaught PDOException: SQLSTATE[HY000]: General error: 2006 MySQL server has gone away in C:\xampp\htdocs\navestar\call-socket-server.php:180
 Stack trace:
-#0 {main}
-  thrown in C:\xampp\htdocs\nave\call-socket-server.php on line 69
+#0 C:\xampp\htdocs\navestar\call-socket-server.php(180): PDO->exec('UPDATE voice_ca...')
+#1 {main}
+  thrown in C:\xampp\htdocs\navestar\call-socket-server.php on line 180

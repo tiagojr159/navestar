@@ -2,7 +2,7 @@
   const style = document.createElement('style');
   style.textContent = `
     .mobile-cockpit{display:none}
-    @media(max-width:767px), (max-width:1024px) and (pointer:coarse){
+    @media(max-width:767px), (pointer:coarse){
       html,body{width:100%;height:100%;height:100dvh;overflow:hidden;overscroll-behavior:none}
       #space{height:100dvh;inset:0;touch-action:none}
       .grain,.reticle,.labels{pointer-events:none}
@@ -46,7 +46,7 @@
   `;
   style.textContent += '.mc-menu a.mc-icon{display:grid;place-items:center;text-decoration:none}';
   style.textContent += `
-    @media(max-width:767px),(max-width:1024px) and (pointer:coarse){
+    @media(max-width:767px),(pointer:coarse){
       .mc-pop{position:fixed!important;left:50%!important;right:auto!important;top:50%!important;bottom:auto!important;transform:translate(-50%,-50%);width:min(360px,calc(100vw - 24px))!important;max-height:min(78dvh,calc(100dvh - 24px))!important;z-index:155!important;box-sizing:border-box}
       .mc-pop .mc-window-head,.mc-station-window-head{position:sticky;top:0;z-index:6;display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-3px -3px 9px;padding:7px 8px;border:1px solid #347181;border-radius:8px;background:#0a2635;color:#93eaf0;font:9px 'Space Mono';letter-spacing:.08em;cursor:move;touch-action:none;user-select:none}
       .mc-pop .mc-window-head h3{margin:0;font:9px 'Space Mono';color:#93eaf0}
@@ -113,7 +113,7 @@
     <div class="mc-pop" id="mcPop" aria-live="polite"></div>
     <div class="mc-context" id="mcContext"><button data-click="#orbit">◉ ÓRBITA</button><button data-context-action="dock" data-click="#dockButton">⚓ ACOPLAR</button><button data-context-action="enter-station" data-click="#dockButton" hidden>↗ ENTRAR NA ESTAÇÃO</button></div>
     <div class="mc-directions" aria-label="Controle da camera orbital"><button type="button" data-hold="ArrowUp" aria-label="Olhar para cima">▲</button><button type="button" data-hold="ArrowLeft" aria-label="Girar camera para esquerda">◀</button><button type="button" data-hold="ArrowDown" aria-label="Olhar para baixo">▼</button><button type="button" data-hold="ArrowRight" aria-label="Girar camera para direita">▶</button></div>
-    <div class="mc-joystick" id="mcJoystick" aria-label="Joystick de direção"><div class="mc-stick"></div><small class="mc-stick-legend">W A S D</small></div>
+    <div class="mc-joystick" id="mcJoystick" aria-label="Joystick de direção"><div class="mc-stick"></div><small class="mc-stick-legend">DIREÇÃO / ALTITUDE</small></div>
     <div class="mc-actions" aria-label="Ações de voo"><button class="mc-action mc-fire" id="mcFire" aria-label="Atirar"><small>SPACE</small><span>ATIRAR</span></button><button class="mc-action mc-mine" id="mcMine" aria-label="Minerar"><small>E</small><span>MINERAR</span></button><button class="mc-action mc-brake" id="mcBrake" aria-label="Frear"><small>X</small><span>FREAR</span></button><button class="mc-action mc-center" id="mcCenter" aria-label="Centralizar câmera"><small>C</small><span>CENTRALIZAR</span></button><button class="mc-action mc-pilot-cabin" id="mcPilotCabin" aria-label="Piloto automático"><small>AUTOPILOTO</small><span>PILOTO AUTOMÁTICO</span></button></div>`;
   document.body.appendChild(ui);
   ui.querySelector('#mcPilotCabin').addEventListener('click',()=>window.crewSystem?.enterPilotCabin?.());
@@ -122,7 +122,7 @@
   const passengerCameraPreview=document.createElement('section');passengerCameraPreview.className='mc-passenger-camera';passengerCameraPreview.hidden=true;passengerCameraPreview.setAttribute('aria-label','Câmeras dos jogadores');passengerCameraPreview.innerHTML='<header class="mc-passenger-camera-head"><b>CÂMERAS · CABINE</b><button type="button" id="mcPassengerCameraMinimize" aria-label="Minimizar câmeras">−</button><button type="button" id="mcPassengerCameraClose" aria-label="Fechar câmeras">×</button></header><div class="mc-passenger-camera-feeds"></div>';document.body.appendChild(passengerCameraPreview);
   const avLayerStyle=document.createElement('style');avLayerStyle.textContent=`.mc-av-modal{max-height:min(92dvh,560px)}@media(max-width:550px){.mc-av-modal{top:calc(env(safe-area-inset-top) + 64px);left:12px;transform:none;max-height:calc(100dvh - 76px);width:min(340px,calc(100vw - 24px))}.mc-actions{grid-template-columns:repeat(2,minmax(72px,1fr));grid-template-rows:repeat(3,44px);width:min(170px,calc(100vw - 24px));gap:5px;right:12px;bottom:12px}.mc-actions .mc-action{height:44px;min-height:44px}}.passenger-cabin .passenger-displays{top:66px!important;z-index:20!important;max-height:calc(100dvh - 78px);overflow:auto}.mc-passenger-camera{position:fixed;z-index:153;top:calc(env(safe-area-inset-top) + 66px);right:calc(env(safe-area-inset-right) + 12px);width:min(260px,48vw);max-height:calc(100dvh - 90px);overflow:hidden;border:1px solid #53c8d8;border-radius:10px;background:#061521f2;color:#c9f6f7;box-shadow:0 10px 30px #000b;font:8px 'Space Mono';touch-action:none}.mc-passenger-camera[hidden]{display:none}.mc-passenger-camera-head{display:flex;align-items:center;min-height:29px;padding:0 8px;border-bottom:1px solid #326879;background:#09202d;cursor:move;touch-action:none;user-select:none}.mc-passenger-camera-head b{margin-right:auto;font-size:7px;letter-spacing:.08em}.mc-passenger-camera-head button{width:22px;height:22px;margin-left:4px;border:1px solid #438d9a;border-radius:5px;background:#071923;color:#b9faff;font:13px 'Space Mono'}.mc-passenger-camera-feeds{max-height:calc(100dvh - 126px);overflow:auto}.mc-passenger-camera-feed{margin:6px;border:1px solid #285669;background:#081a27}.mc-passenger-camera-feed b{display:block;padding:5px 7px;color:#9beaf0;font-size:7px}.mc-passenger-camera video{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:#02080d}.mc-passenger-camera.minimized .mc-passenger-camera-feeds{display:none}`;document.head.appendChild(avLayerStyle);
 
-  const media = matchMedia('(max-width:767px), (max-width:1024px) and (pointer:coarse)');
+  const media = matchMedia('(max-width:767px), (pointer:coarse)');
   const wideMedia = matchMedia('(min-width:768px) and (pointer:fine)');
   const menu = ui.querySelector('#mcMenu');
   const menuToggle = ui.querySelector('#mcMenuToggle');
@@ -281,9 +281,9 @@
     const joy = ui.querySelector('#mcJoystick');
     if (joy.dataset.pointer) {
       const x = Number(joy.dataset.x || 0), y = Number(joy.dataset.y || 0);
-      if (x < -.24) keys.add('a'); if (x > .24) keys.add('d');
-      if (y < -.24) keys.add('w'); if (y > .24) keys.add('s');
+      window.flightCombat?.setStick(x, y);
     }
+    if (!joy.dataset.pointer) window.flightCombat?.setStick(0, 0);
     const prior = new Set((ui.dataset.keys || '').split('|').filter(Boolean));
     prior.forEach(key => { if (!keys.has(key)) dispatchKey(key, 'keyup'); });
     keys.forEach(key => { if (!prior.has(key)) dispatchKey(key, 'keydown'); });
@@ -363,7 +363,7 @@
       const mobileFire=ui.querySelector('#mcFire');mobileFire.dataset.weaponIndex='0';mobileFire.addEventListener('click',()=>window.fireMountedWeapon?.(Number(mobileFire.dataset.weaponIndex)||0));function syncMobileFireButtons(){const mounts=window.getMountedWeapons?.()||[];const actions=ui.querySelector('.mc-actions');mounts.forEach((mount,index)=>{let button=index===0?mobileFire:actions.querySelector('[data-mobile-fire="'+index+'"]');if(!button){button=document.createElement('button');button.type='button';button.className='mc-action mc-fire';button.dataset.mobileFire=String(index);actions.insertBefore(button,ui.querySelector('#mcMine'));button.addEventListener('click',()=>window.fireMountedWeapon?.(Number(button.dataset.weaponIndex)||0))}button.dataset.weaponIndex=String(index);const fireColors=['#ff9da6','#8ce9f0','#c8a7ff','#ffd083'];button.style.color=fireColors[index%fireColors.length];button.style.borderColor=fireColors[index%fireColors.length];const markup='<span>ATIRAR '+(mounts.length>1?({pulse:'PULSO',ion:'IONS',heavy:'PLASMA',singularity:'SINGULARIDADE'}[mount.kind]||mount.kind.toUpperCase())+' '+(index+1):'')+'</span>';if(button.innerHTML!==markup)button.innerHTML=markup;button.title='Atirar - '+mount.ammo+' projeteis';button.disabled=mount.ammo<1;button.style.display=''});actions.querySelectorAll('[data-mobile-fire]').forEach(button=>{if(Number(button.dataset.weaponIndex)>=mounts.length)button.style.display='none'});mobileFire.style.display=mounts.length?'':'none'}window.addEventListener('navestar:weapons-changed',syncMobileFireButtons);syncMobileFireButtons();
   ui.querySelector('#mcMine').addEventListener('click', () => document.querySelector('#mineButton')?.click());
   ui.querySelector('#mcBrake').addEventListener('click', () => {document.dispatchEvent(new KeyboardEvent('keydown',{key:'x',bubbles:true}));setTimeout(()=>document.dispatchEvent(new KeyboardEvent('keyup',{key:'x',bubbles:true})),160)});
-  ui.querySelector('#mcCenter').addEventListener('click', () => {document.dispatchEvent(new KeyboardEvent('keydown',{key:'c',bubbles:true}));setTimeout(()=>document.dispatchEvent(new KeyboardEvent('keyup',{key:'c',bubbles:true})),50)});
+  ui.querySelector('#mcCenter').addEventListener('click', () => { document.querySelector('#cameraTilt')?.click();document.dispatchEvent(new KeyboardEvent('keydown',{key:'c',bubbles:true}));setTimeout(()=>document.dispatchEvent(new KeyboardEvent('keyup',{key:'c',bubbles:true})),50)});
 
   ui.querySelectorAll('[data-click]').forEach(button => button.addEventListener('click', () => document.querySelector(button.dataset.click)?.click()));
   ui.querySelector('#mcContext [data-context-action="enter-station"]')?.addEventListener('click',()=>setMenuOpen(false));

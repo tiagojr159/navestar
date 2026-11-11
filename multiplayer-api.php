@@ -169,8 +169,11 @@ try {
     require_once __DIR__ . '/voice-message-storage.php';
     require_once __DIR__ . '/call-socket-auth.php';
     require_once __DIR__ . '/rare-asteroids.php';
+    require_once __DIR__ . '/combat-rules.php';
     $pdo = db();
     $action = $_GET['action'] ?? '';
+    require_once __DIR__ . '/communications-api.php';
+    commsHandle($pdo, $userId, (string)$action);
 
     if ($action === 'control-layout') {
         $pdo->exec("CREATE TABLE IF NOT EXISTS user_control_layouts (
@@ -328,7 +331,8 @@ try {
     }
 
     if ($action === 'call-socket-token') {
-        mpResponse(['token' => callSocketIssueToken($userId), 'expires_in' => 90]);
+        $socketConfig = require __DIR__ . '/call-socket-config.php';
+        mpResponse(['token' => callSocketIssueToken($userId), 'expires_in' => 90, 'url'=>(string)(getenv('NAVE_CALL_SOCKET_URL')?:''), 'port'=>(int)$socketConfig['port']]);
     }
 
     if ($action === 'rare-asteroids') {
@@ -513,7 +517,7 @@ try {
         mpResponse([
             'id' => (int)$ship['id'], 'name' => $ship['ship_name'], 'shipClass' => (string)$ship['ship_class'], 'cargoCapacity' => (int)$ship['cargo_capacity_kg'], 'fuelCapacity' => (int)$ship['fuel_capacity_units'], 'username' => $ship['username'], 'role' => $ship['crew_role'] ?? 'pilot', 'stationId' => (int)($ship['docked_station_id'] ?? 0),
             'x' => (float)$ship['pos_x'], 'y' => (float)$ship['pos_y'], 'z' => (float)$ship['pos_z'],
-            'yaw' => (float)$ship['heading'], 'roll' => (float)$ship['roll'],
+            'yaw' => (float)$ship['heading'], 'pitch' => (float)$ship['pitch'], 'roll' => (float)$ship['roll'],
             'energy' => (int)$ship['energy_units'], 'fuel' => (float)$ship['fuel_units'], 'hull' => (int)$ship['hull_hp'],
             'credits' => (int)$ship['credits'],
             'cargo' => ['Ferro' => (int)$ship['iron_kg'], 'Niquel' => (int)$ship['nickel_kg'], 'Cobalto' => (int)$ship['cobalt_kg'], 'Gelo' => (int)$ship['ice_kg']],
@@ -538,6 +542,9 @@ try {
         $x = max(-450000, min(450000, (float)$data['x']));
         $z = max(-450000, min(450000, (float)$data['z']));
         $yaw = fmod((float)$data['yaw'], M_PI * 2);
+        $y = max(-450000, min(450000, (float)($data['y'] ?? 0)));
+        $pitch = max(-1.35, min(1.35, (float)($data['pitch'] ?? 0)));
+        $speed = max(0, min(50, (float)($data['speed'] ?? 0)));
         $cargo = is_array($data['cargo'] ?? null) ? $data['cargo'] : [];
         $iron = max(0, min(1000000, (int)($cargo['Ferro'] ?? 0)));
         $nickel = max(0, min(1000000, (int)($cargo['Niquel'] ?? 0)));
@@ -584,8 +591,8 @@ try {
             $shipId = (int)$pdo->lastInsertId();
         }
         $rescueLock=$pdo->prepare("SELECT id FROM ship_rescue_requests WHERE target_ship_id=? AND status='active' LIMIT 1"); $rescueLock->execute([$shipId]); if($rescueLock->fetchColumn()){ $pdo->prepare('UPDATE users SET last_seen_at=NOW() WHERE id=?')->execute([$userId]); $pdo->commit(); mpResponse(['ok'=>true,'beingTowed'=>true,'hull'=>(int)$foundShip['hull_hp']]); }
-        $pdo->prepare('UPDATE ships SET pos_x=IF(docked_station_id IS NULL,?,pos_x), pos_y=IF(docked_station_id IS NULL,0,pos_y), pos_z=IF(docked_station_id IS NULL,?,pos_z), heading=IF(docked_station_id IS NULL,?,heading), pitch=IF(docked_station_id IS NULL,0,pitch), roll=IF(docked_station_id IS NULL,?,roll), speed=IF(docked_station_id IS NULL,0,speed), iron_kg=?, nickel_kg=?, cobalt_kg=?, ice_kg=?, energy_units=?, fuel_units=LEAST(fuel_units,?), selected_weapon_code=?, is_active=1 WHERE id=? AND user_id=?')
-            ->execute([$x, $z, $yaw, (float)($data['roll'] ?? 0), $iron, $nickel, $cobalt, $ice, $energy, $fuel, $equippedCodes[$kind], $shipId, $userId]);
+        $pdo->prepare('UPDATE ships SET pos_x=IF(docked_station_id IS NULL,?,pos_x), pos_y=IF(docked_station_id IS NULL,?,pos_y), pos_z=IF(docked_station_id IS NULL,?,pos_z), heading=IF(docked_station_id IS NULL,?,heading), pitch=IF(docked_station_id IS NULL,?,pitch), roll=IF(docked_station_id IS NULL,?,roll), speed=IF(docked_station_id IS NULL,?,speed), iron_kg=?, nickel_kg=?, cobalt_kg=?, ice_kg=?, energy_units=?, fuel_units=LEAST(fuel_units,?), selected_weapon_code=?, is_active=1 WHERE id=? AND user_id=?')
+            ->execute([$x, $y, $z, $yaw, $pitch, (float)($data['roll'] ?? 0), $speed, $iron, $nickel, $cobalt, $ice, $energy, $fuel, $equippedCodes[$kind], $shipId, $userId]);
         $pdo->prepare('UPDATE users SET last_seen_at=NOW() WHERE id=?')->execute([$userId]);
 
         if (in_array('singularity', $owned, true)) {
@@ -596,7 +603,7 @@ try {
         $equipmentId = $pdo->prepare('SELECT id FROM equipment WHERE code = ? AND is_available = 1');
         $upsertOwned = $pdo->prepare(
             'INSERT INTO ship_equipment (ship_id,equipment_id,quantity,ammo_current,is_equipped) VALUES (?,?,1,?,?)
-             ON DUPLICATE KEY UPDATE quantity=GREATEST(quantity,1), ammo_current=IF(VALUES(is_equipped)=1,VALUES(ammo_current),ammo_current), is_equipped=VALUES(is_equipped)'
+             ON DUPLICATE KEY UPDATE quantity=GREATEST(quantity,1), ammo_current=IF(VALUES(is_equipped)=1,LEAST(ammo_current,VALUES(ammo_current)),ammo_current), is_equipped=VALUES(is_equipped)'
         );
         $pdo->prepare("UPDATE ship_equipment se JOIN equipment e ON e.id=se.equipment_id SET se.is_equipped=0 WHERE se.ship_id=? AND e.equipment_type='weapon'")->execute([$shipId]);
         foreach ($owned as $ownedKind) {
@@ -658,23 +665,66 @@ try {
         mpResponse(['hull'=>(int)$ship['hull_hp'],'x'=>(float)$ship['pos_x'],'z'=>(float)$ship['pos_z'],'stationId'=>(int)($ship['docked_station_id']??0),'wrecks'=>$wrecks]);
     }
 
-    if ($action === 'ship-attack') {
+    if ($action === 'weapon-reload') {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error'=>'Use POST para recarregar.'],405);
+        $input=mpInput();
+        $codes=['pulse'=>'pulse_cannon','ion'=>'ion_cannon','heavy'=>'heavy_plasma_cannon','singularity'=>'singularity_cannon'];
+        $kind=(string)($input['kind']??'');
+        if (!isset($codes[$kind])) mpResponse(['error'=>'Selecione uma arma equipada.'],400);
+        $pdo->beginTransaction();
+        $shipQuery=$pdo->prepare("SELECT s.id,s.user_id,s.pos_x,s.pos_y,s.pos_z,s.hull_hp FROM ships s LEFT JOIN ship_crew sc ON sc.ship_id=s.id AND sc.copilot_id=? AND sc.status='active' WHERE ((s.user_id=? AND NOT EXISTS (SELECT 1 FROM ship_crew own_crew WHERE own_crew.copilot_id=? AND own_crew.status='active')) OR sc.ship_id=s.id) AND s.is_active=1 LIMIT 1 FOR UPDATE");
+        $shipQuery->execute([$userId,$userId,$userId]);
+        $ship=$shipQuery->fetch(PDO::FETCH_ASSOC);
+        $stationQuery=$pdo->prepare('SELECT pos_x,pos_y,pos_z FROM space_stations WHERE code=? AND is_active=1 AND hull_hp>0 LIMIT 1');
+        $stationQuery->execute([(string)($input['station']??'')]);
+        $station=$stationQuery->fetch(PDO::FETCH_ASSOC);
+        if (!$ship || !$station || (int)$ship['hull_hp']<1 || sqrt(pow((float)$ship['pos_x']-(float)$station['pos_x'],2)+pow((float)$ship['pos_y']-(float)$station['pos_y'],2)+pow((float)$ship['pos_z']-(float)$station['pos_z'],2))>2200) mpResponse(['error'=>'Aproxime-se da estação para recarregar.'],409);
+        $weaponQuery=$pdo->prepare("SELECT e.id,e.ammo_capacity,se.ammo_current FROM ship_equipment se JOIN equipment e ON e.id=se.equipment_id WHERE se.ship_id=? AND e.code=? AND se.is_equipped=1 AND se.quantity>0 LIMIT 1 FOR UPDATE");
+        $weaponQuery->execute([(int)$ship['id'],$codes[$kind]]);
+        $weapon=$weaponQuery->fetch(PDO::FETCH_ASSOC);
+        if (!$weapon) mpResponse(['error'=>'Arma não equipada.'],409);
+        $loaded=min(30,max(0,(int)$weapon['ammo_capacity']-(int)$weapon['ammo_current']));
+        if (!$loaded) mpResponse(['error'=>'Munição já está completa.'],409);
+        $walletQuery=$pdo->prepare('SELECT credits FROM users WHERE id=? FOR UPDATE');
+        $walletQuery->execute([(int)$ship['user_id']]);
+        $balance=(int)$walletQuery->fetchColumn();
+        if ($balance<30) mpResponse(['error'=>'Créditos insuficientes. A recarga custa 30 CR.'],409);
+        $pdo->prepare('UPDATE users SET credits=credits-30 WHERE id=?')->execute([(int)$ship['user_id']]);
+        $pdo->prepare('UPDATE ship_equipment SET ammo_current=ammo_current+? WHERE ship_id=? AND equipment_id=?')->execute([$loaded,(int)$ship['id'],(int)$weapon['id']]);
+        $pdo->commit();
+        mpResponse(['ok'=>true,'kind'=>$kind,'ammo'=>(int)$weapon['ammo_current']+$loaded,'loaded'=>$loaded,'credits'=>$balance-30]);
+    }
+
+    if ($action === 'ship-attack' || $action === 'weapon-fire') {
         mpEnsurePlayerKillerMarks($pdo);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error' => 'Use POST para atacar.'], 405);
         $attackInput=mpInput(); $targetUserId=(int)($attackInput['user_id']??0); $requestedKind=(string)($attackInput['kind']??''); $weaponCodes=['pulse'=>'pulse_cannon','ion'=>'ion_cannon','heavy'=>'heavy_plasma_cannon','singularity'=>'singularity_cannon'];
-        if ($targetUserId < 1 || $targetUserId === $userId) mpResponse(['error' => 'Alvo invÃ¡lido.'], 400);
+        if ($targetUserId < 0 || ($targetUserId === 0 && $action === 'ship-attack') || $targetUserId === $userId) mpResponse(['error' => 'Alvo invÃ¡lido.'], 400);
         $crewAttackQuery=$pdo->prepare("SELECT captain_id FROM ship_crew WHERE copilot_id=? AND status='active' LIMIT 1"); $crewAttackQuery->execute([$userId]);
         $attackerUserId=(int)($crewAttackQuery->fetchColumn() ?: $userId);
+        // A row per ship/weapon serializes cadence across pilot, copilot and browser tabs.
+        $pdo->exec('CREATE TABLE IF NOT EXISTS ship_weapon_cooldowns (ship_id BIGINT UNSIGNED NOT NULL, weapon_kind VARCHAR(16) NOT NULL, fired_at_ms BIGINT UNSIGNED NOT NULL DEFAULT 0, PRIMARY KEY(ship_id,weapon_kind)) ENGINE=InnoDB');
         $pdo->beginTransaction();
-        $shipsQuery = $pdo->prepare('SELECT id,user_id,pos_x,pos_z,hull_hp,ship_class,iron_kg,nickel_kg,cobalt_kg,energy_units,docked_station_id FROM ships WHERE user_id IN (?,?) AND is_active=1 ORDER BY user_id FOR UPDATE');
+        $shipsQuery = $pdo->prepare('SELECT id,user_id,pos_x,pos_y,pos_z,heading,pitch,hull_hp,ship_class,iron_kg,nickel_kg,cobalt_kg,energy_units,docked_station_id FROM ships WHERE user_id IN (?,?) AND is_active=1 ORDER BY user_id FOR UPDATE');
         $shipsQuery->execute([$attackerUserId,$targetUserId]);
         $ships = [];
         foreach ($shipsQuery->fetchAll(PDO::FETCH_ASSOC) as $row) $ships[(int)$row['user_id']] = $row;
         $attacker = $ships[$attackerUserId] ?? null;
         $target = $ships[$targetUserId] ?? null;
-        if (!$attacker || !$target || (int)$attacker['id']===(int)$target['id'] || $attacker['docked_station_id'] !== null || $target['docked_station_id'] !== null || (int)$attacker['hull_hp'] < 1 || (int)$target['hull_hp'] < 1) mpResponse(['error'=>'Uma das naves nÃ£o estÃ¡ disponÃ­vel para combate.'], 409);
-        $distance = hypot((float)$attacker['pos_x']-(float)$target['pos_x'],(float)$attacker['pos_z']-(float)$target['pos_z']);
-        if ($distance > 25000) mpResponse(['error'=>'Alvo fora do alcance das armas (25.000 km).'], 409);
+        if (!$attacker || $attacker['docked_station_id'] !== null || (int)$attacker['hull_hp'] < 1 || ($attacker['ship_class'] ?? '') === 'freighter') mpResponse(['error'=>'Sua nave não está disponível para combate.'], 409);
+        if ($targetUserId && (!$target || (int)$attacker['id'] === (int)$target['id'] || $target['docked_station_id'] !== null || (int)$target['hull_hp'] < 1)) mpResponse(['error'=>'Alvo indisponível para combate.'], 409);
+        if (!isset($weaponCodes[$requestedKind])) mpResponse(['error'=>'Selecione uma arma equipada.'], 400);
+        $shotYaw = $attackInput['yaw'] ?? $attacker['heading'];
+        $shotPitch = $attackInput['pitch'] ?? $attacker['pitch'];
+        if (!is_numeric($shotYaw) || !is_numeric($shotPitch) || !is_finite((float)$shotYaw) || !is_finite((float)$shotPitch) || abs((float)$shotPitch) > 1.35) mpResponse(['error'=>'Direção de tiro inválida.'], 400);
+        $distance = $target ? sqrt(pow((float)$attacker['pos_x']-(float)$target['pos_x'],2)+pow((float)$attacker['pos_y']-(float)$target['pos_y'],2)+pow((float)$attacker['pos_z']-(float)$target['pos_z'],2)) : 0;
+        $hit = $target && combatAlignedHit($attacker, $target, (float)$shotYaw, (float)$shotPitch);
+        $nowMs = (int)floor(microtime(true)*1000);
+        $pdo->prepare('INSERT IGNORE INTO ship_weapon_cooldowns(ship_id,weapon_kind) VALUES (?,?)')->execute([(int)$attacker['id'],$requestedKind]);
+        $cooldownQuery=$pdo->prepare('SELECT fired_at_ms FROM ship_weapon_cooldowns WHERE ship_id=? AND weapon_kind=? FOR UPDATE');
+        $cooldownQuery->execute([(int)$attacker['id'],$requestedKind]);
+        $waitMs = combatWeaponInterval($requestedKind) - ($nowMs-(int)$cooldownQuery->fetchColumn());
+        if ($waitMs > 0) mpResponse(['error'=>'Arma recarregando.', 'retryAfterMs'=>$waitMs],429);
         $requestedCode=$weaponCodes[$requestedKind]??'';
         $weaponQuery = $pdo->prepare("SELECT e.id,e.code,se.ammo_current FROM ship_equipment se JOIN equipment e ON e.id=se.equipment_id WHERE se.ship_id=? AND se.is_equipped=1 AND se.quantity>0 AND e.equipment_type='weapon' AND (?='' OR e.code=?) ORDER BY e.id LIMIT 1 FOR UPDATE");
         $weaponQuery->execute([(int)$attacker['id'],$requestedCode,$requestedCode]);
@@ -689,6 +739,11 @@ try {
         }
         if (($attacker['ship_class']??'explorer')==='attack') $damage=(int)round($damage*1.35);
         $pdo->prepare('UPDATE ship_equipment SET ammo_current=ammo_current-1 WHERE ship_id=? AND equipment_id=? AND ammo_current>0')->execute([(int)$attacker['id'],(int)$weapon['id']]);
+        $pdo->prepare('UPDATE ship_weapon_cooldowns SET fired_at_ms=? WHERE ship_id=? AND weapon_kind=?')->execute([$nowMs,(int)$attacker['id'],$requestedKind]);
+        if (!$hit) {
+            $pdo->commit();
+            mpResponse(['ok'=>true,'hit'=>false,'damage'=>0,'ammo'=>max(0,(int)$weapon['ammo_current']-1),'destroyed'=>false]);
+        }
         $hull=max(0,(int)$target['hull_hp']-$damage);
         $wreckId=null;
         if ($hull===0) {
@@ -714,7 +769,7 @@ try {
         $ammoQuery->execute([(int)$attacker['id'],(string)$weapon['code']]);
         $ammo=(int)$ammoQuery->fetchColumn();
         $pdo->commit();
-        mpResponse(['ok'=>true,'damage'=>$damage,'hull'=>$hull,'ammo'=>$ammo,'destroyed'=>$hull===0,'wreckId'=>$wreckId,'distance'=>round($distance)]);
+        mpResponse(['ok'=>true,'hit'=>true,'damage'=>$damage,'hull'=>$hull,'ammo'=>$ammo,'destroyed'=>$hull===0,'wreckId'=>$wreckId,'distance'=>round($distance)]);
     }
 
     if ($action === 'loot-claim') {
@@ -1722,79 +1777,6 @@ try {
         $update = $pdo->prepare("UPDATE voice_messages SET status=? WHERE id=? AND recipient_id=? AND status='pending'");
         $update->execute([$status, $messageId, $userId]);
         mpResponse(['ok' => true]);
-    }
-
-    if ($action === 'call-start') {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error' => 'Use POST para ligar.'], 405);
-        $targetId = (int)(mpInput()['user_id'] ?? 0);
-        if ($targetId < 1 || !mpAreFriends($pdo, $userId, $targetId)) mpResponse(['error' => 'VocÃª precisa ser amigo desse piloto para ligar.'], 403);
-        $onlineQuery = $pdo->prepare('SELECT id FROM users WHERE id=? AND is_active=1 AND last_seen_at >= DATE_SUB(NOW(), INTERVAL 20 SECOND)');
-        $onlineQuery->execute([$targetId]);
-        if (!$onlineQuery->fetchColumn()) mpResponse(['error' => 'Esse amigo estÃ¡ offline no momento.'], 409);
-        $activeQuery = $pdo->prepare("SELECT call_id FROM voice_calls WHERE status IN ('ringing','accepted') AND (caller_id IN (?,?) OR callee_id IN (?,?)) ORDER BY created_at DESC LIMIT 1");
-        $activeQuery->execute([$userId, $targetId, $userId, $targetId]);
-        if ($activeQuery->fetchColumn()) mpResponse(['error' => 'Um dos pilotos jÃ¡ estÃ¡ em outra ligaÃ§Ã£o.'], 409);
-        $callId = mpCallId();
-        $pdo->prepare("INSERT INTO voice_calls (call_id,caller_id,callee_id,status) VALUES (?,?,?,'ringing')")->execute([$callId, $userId, $targetId]);
-        mpResponse(['ok' => true, 'call_id' => $callId, 'status' => 'ringing']);
-    }
-
-    if ($action === 'call-accept' || $action === 'call-decline' || $action === 'call-end') {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error' => 'Use POST para controlar a ligaÃ§Ã£o.'], 405);
-        $callId = (string)(mpInput()['call_id'] ?? '');
-        if (!preg_match('/^[a-f0-9-]{36}$/i', $callId)) mpResponse(['error' => 'LigaÃ§Ã£o invÃ¡lida.'], 400);
-        if ($action === 'call-accept') {
-            $stmt = $pdo->prepare("UPDATE voice_calls SET status='accepted' WHERE call_id=? AND callee_id=? AND status='ringing'");
-        } elseif ($action === 'call-decline') {
-            $stmt = $pdo->prepare("UPDATE voice_calls SET status='declined',ended_at=NOW() WHERE call_id=? AND callee_id=? AND status='ringing'");
-        } else {
-            $stmt = $pdo->prepare("UPDATE voice_calls SET status='ended',ended_at=NOW() WHERE call_id=? AND (caller_id=? OR callee_id=?) AND status IN ('ringing','accepted')");
-        }
-        $stmt->execute($action === 'call-end' ? [$callId, $userId, $userId] : [$callId, $userId]);
-        if (!$stmt->rowCount()) mpResponse(['error' => 'A ligaÃ§Ã£o nÃ£o estÃ¡ mais ativa.'], 404);
-        mpResponse(['ok' => true]);
-    }
-
-    if ($action === 'call-signal') {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error' => 'Use POST para enviar sinalizaÃ§Ã£o.'], 405);
-        $input = mpInput();
-        $callId = (string)($input['call_id'] ?? '');
-        $signalType = (string)($input['type'] ?? '');
-        $payload = $input['payload'] ?? null;
-        if (!preg_match('/^[a-f0-9-]{36}$/i', $callId) || !in_array($signalType, ['offer','answer','ice'], true) || !is_array($payload)) mpResponse(['error' => 'Sinal de ligaÃ§Ã£o invÃ¡lido.'], 400);
-        $callQuery = $pdo->prepare("SELECT caller_id,callee_id FROM voice_calls WHERE call_id=? AND status IN ('ringing','accepted')");
-        $callQuery->execute([$callId]);
-        $call = $callQuery->fetch();
-        if (!$call || !in_array($userId, [(int)$call['caller_id'],(int)$call['callee_id']], true)) mpResponse(['error' => 'LigaÃ§Ã£o nÃ£o encontrada.'], 404);
-        $otherUser = (int)$call['caller_id'] === $userId ? (int)$call['callee_id'] : (int)$call['caller_id'];
-        $pdo->prepare('INSERT INTO call_signals (call_id,sender_id,recipient_id,signal_type,payload) VALUES (?,?,?,?,?)')
-            ->execute([$callId, $userId, $otherUser, $signalType, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
-        mpResponse(['ok' => true]);
-    }
-
-    if ($action === 'call-poll') {
-        $pdo->exec("UPDATE voice_calls SET status='missed',ended_at=NOW() WHERE status='ringing' AND created_at < DATE_SUB(NOW(), INTERVAL 35 SECOND)");
-        $callsQuery = $pdo->prepare(
-            "SELECT c.call_id,c.caller_id,c.callee_id,c.status,c.created_at,
-                    u.username AS caller_name, v.username AS callee_name
-             FROM voice_calls c JOIN users u ON u.id=c.caller_id JOIN users v ON v.id=c.callee_id
-             WHERE (c.caller_id=? OR c.callee_id=?) AND (c.status IN ('ringing','accepted') OR c.updated_at >= DATE_SUB(NOW(), INTERVAL 2 MINUTE))
-             ORDER BY c.updated_at DESC LIMIT 8"
-        );
-        $callsQuery->execute([$userId, $userId]);
-        $signalsQuery = $pdo->prepare(
-            "SELECT cs.id,cs.call_id,cs.signal_type,cs.payload FROM call_signals cs JOIN voice_calls c ON c.call_id=cs.call_id
-             WHERE cs.recipient_id=? AND cs.read_at IS NULL AND c.status IN ('ringing','accepted') ORDER BY cs.id LIMIT 60"
-        );
-        $signalsQuery->execute([$userId]);
-        $signals = $signalsQuery->fetchAll();
-        if ($signals) {
-            $signalIds = array_map('intval', array_column($signals, 'id'));
-            $pdo->exec('UPDATE call_signals SET read_at=NOW() WHERE id IN (' . implode(',', $signalIds) . ') AND recipient_id=' . $userId);
-        }
-        foreach ($signals as &$signal) { $signal['payload'] = json_decode($signal['payload'], true) ?: []; }
-        unset($signal);
-        mpResponse(['calls' => $callsQuery->fetchAll(), 'signals' => $signals]);
     }
 
     if ($action === 'players') {
