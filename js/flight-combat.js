@@ -23,6 +23,9 @@
     return document.hidden || shipHull <= 0 || window.crewDocked || window.dockingRequested || dockingCinematic.active || pilotCabinAutopilot ||
       !!document.querySelector('#communicationsHub.open,#stationScreen.open,.crew-interior.open,.passenger-cabin.open,.combat-overlay.open,#pilotOverlay.open,#friendsPanel.open,.mc-pop.open,.mc-menu.open,.flight-help:not([hidden])');
   }
+  function belongsToStationWalk(event) {
+    return ['KeyW','KeyA','KeyS','KeyD'].includes(event.code) && !!document.querySelector('.crew-interior.open');
+  }
   function canPilot() { return !blocked() && window.crewRole !== 'copilot' && window.crewRole !== 'passenger' && !window.tractorSystem?.isBeingTowed; }
   function canFire() { return !blocked() && window.crewRole !== 'passenger' && !window.tractorSystem?.isBeingTowed; }
   function release() {
@@ -127,6 +130,7 @@
   holdButton(hud.querySelector('[data-boost-button]'), id => { input.held.add('boost:' + id); manual(); }, id => input.held.delete('boost:' + id));
   const controlledCodes = new Set(['KeyW','KeyS','KeyA','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight','Space','KeyX','KeyC','KeyT','F2','F3','F4']);
   window.addEventListener('keydown', event => {
+    if (belongsToStationWalk(event)) return;
     if (event.code === 'Escape') {
       hud.querySelector('.flight-help').hidden = true;
       hud.querySelector('[data-help]').setAttribute('aria-expanded', 'false');
@@ -148,7 +152,9 @@
   }, true);
   window.addEventListener('keyup', event => {
     if (!controlledCodes.has(event.code)) return;
-    input.held.delete(event.code); triggers.delete(event.code); event.stopImmediatePropagation();
+    input.held.delete(event.code); triggers.delete(event.code);
+    if (belongsToStationWalk(event) || ['KeyW','KeyA','KeyS','KeyD'].includes(event.code)) return;
+    event.stopImmediatePropagation();
   }, true);
   surface.addEventListener('contextmenu', event => event.preventDefault());
   surface.addEventListener('pointerdown', event => {
