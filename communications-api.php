@@ -82,7 +82,8 @@ function commsHandle(PDO $pdo, int $userId, string $action): bool
         mpResponse(['userId'=>$userId,'iceServers'=>commsIceServers(),'socketUrl'=>(string)(getenv('NAVE_CALL_SOCKET_URL')?:''),'maxMessageLength'=>2000]);
     }
     if ($action==='chat-roster') {
-        $q=$pdo->prepare("SELECT u.id,u.username,u.last_seen_at>=DATE_SUB(NOW(),INTERVAL 20 SECOND) AS online FROM friend_requests f JOIN users u ON u.id=IF(f.requester_id=?,f.recipient_id,f.requester_id) WHERE f.status='accepted' AND (f.requester_id=? OR f.recipient_id=?) AND u.is_active=1 ORDER BY online DESC,u.username");
+        // Station occupants remain visible for 30 seconds; keep call presence in sync.
+        $q=$pdo->prepare("SELECT u.id,u.username,u.last_seen_at>=DATE_SUB(NOW(),INTERVAL 30 SECOND) AS online FROM friend_requests f JOIN users u ON u.id=IF(f.requester_id=?,f.recipient_id,f.requester_id) WHERE f.status='accepted' AND (f.requester_id=? OR f.recipient_id=?) AND u.is_active=1 ORDER BY online DESC,u.username");
         $q->execute([$userId,$userId,$userId]);
         $friends=$q->fetchAll(PDO::FETCH_ASSOC);
         $unread=$pdo->prepare("SELECT m.sender_id,COUNT(*) AS unread FROM communication_messages m LEFT JOIN communication_reads r ON r.user_id=? AND r.conversation_key=m.conversation_key WHERE m.recipient_id=? AND m.id>COALESCE(r.last_message_id,0) GROUP BY m.sender_id");
@@ -140,7 +141,7 @@ function commsHandle(PDO $pdo, int $userId, string $action): bool
         if ($target===$userId || !mpAreFriends($pdo,$userId,$target)) mpResponse(['error'=>'Adicione este piloto aos amigos antes de ligar.'],403);
         $pdo->beginTransaction();
         $q=$pdo->prepare('SELECT id FROM users WHERE id IN (?,?) ORDER BY id FOR UPDATE');$q->execute([$userId,$target]);$q->fetchAll();
-        $q=$pdo->prepare('SELECT id FROM users WHERE id=? AND is_active=1 AND last_seen_at>=DATE_SUB(NOW(),INTERVAL 20 SECOND)');$q->execute([$target]);
+        $q=$pdo->prepare('SELECT id FROM users WHERE id=? AND is_active=1 AND last_seen_at>=DATE_SUB(NOW(),INTERVAL 30 SECOND)');$q->execute([$target]);
         if (!$q->fetchColumn()) mpResponse(['error'=>'Este piloto está offline. Você pode deixar uma mensagem.'],409);
         $q=$pdo->prepare("SELECT call_id FROM voice_calls WHERE status IN ('ringing','accepted') AND (caller_id IN (?,?) OR callee_id IN (?,?)) LIMIT 1 FOR UPDATE");$q->execute([$userId,$target,$userId,$target]);
         if ($q->fetchColumn()) mpResponse(['error'=>'Um dos participantes já está em outra chamada.'],409);
