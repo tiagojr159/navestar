@@ -1,9 +1,11 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/src/Storage/PrivateStorage.php';
+
 function voiceMessageStorageRoot(): string
 {
-    return __DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'voice-messages';
+    return \NaveStar\Storage\PrivateStorage::directory('voice-messages');
 }
 
 function voiceMessageAbsolutePath(string $relativePath): ?string
@@ -11,14 +13,26 @@ function voiceMessageAbsolutePath(string $relativePath): ?string
     if (!preg_match('#^(\d{4}-\d{2}-\d{2})/([a-f0-9]{32}\.(webm|ogg|m4a|wav))$#i', $relativePath, $matches)) {
         return null;
     }
-    return voiceMessageStorageRoot() . DIRECTORY_SEPARATOR . $matches[1] . DIRECTORY_SEPARATOR . $matches[2];
+    $root = voiceMessageStorageRoot();
+    $directory = $root . DIRECTORY_SEPARATOR . $matches[1];
+    if (is_link($directory)) return null;
+    $realRoot = realpath($root);
+    $realDirectory = realpath($directory);
+    if ($realRoot === false || $realDirectory === false || dirname($realDirectory) !== $realRoot) return null;
+    $path = $realDirectory . DIRECTORY_SEPARATOR . $matches[2];
+    if (is_link($path)) return null;
+    $realPath = realpath($path);
+    if ($realPath !== false && dirname($realPath) !== $realDirectory) return null;
+    return $path;
 }
 
 function cleanupExpiredVoiceMessages(PDO $pdo, bool $force = false): void
 {
     $root = voiceMessageStorageRoot();
-    if (!is_dir($root) && !@mkdir($root, 0775, true) && !is_dir($root)) return;
+    if (is_link($root)) return;
+    if (!is_dir($root) && !@mkdir($root, 0770, true) && !is_dir($root)) return;
     $lockPath = $root . DIRECTORY_SEPARATOR . '.cleanup.lock';
+    if (is_link($lockPath)) return;
     $lock = @fopen($lockPath, 'c');
     if ($lock === false) return;
     try {
@@ -35,9 +49,10 @@ function cleanupExpiredVoiceMessages(PDO $pdo, bool $force = false): void
 
         $cutoff = time() - 86400;
         foreach (glob($root . DIRECTORY_SEPARATOR . '*', GLOB_ONLYDIR) ?: [] as $directory) {
+            if (is_link($directory)) continue;
             if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', basename($directory))) continue;
             foreach (glob($directory . DIRECTORY_SEPARATOR . '*') ?: [] as $file) {
-                if (is_file($file) && (int)@filemtime($file) < $cutoff) @unlink($file);
+                if (!is_link($file) && is_file($file) && (int)@filemtime($file) < $cutoff) @unlink($file);
             }
             $remaining = glob($directory . DIRECTORY_SEPARATOR . '*');
             if ($remaining !== false && !$remaining) @rmdir($directory);

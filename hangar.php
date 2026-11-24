@@ -27,7 +27,7 @@ try {
 <!doctype html>
 <html lang="pt-BR">
 <head>
- <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark">
+ <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="csrf-token" content="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>"><script src="js/api-client.js?v=20261123-csrf1"></script>
  <title>Hangar de naves · NAVE STAR</title>
  <link rel="stylesheet" href="assets/hangar3d/estilos.css?v=1">
  <style>
@@ -79,7 +79,7 @@ try {
   const openShip=window.NaveStarHangar?.openShip;
   if(openShip)window.NaveStarHangar.openShip=index=>{currentModel=Number(index);return openShip(index)};
   function selectShip(index){currentModel=Number(index);window.NaveStarHangar?.openShip(index)}
-  window.addEventListener('load',()=>{let savedModel=window.NaveStarShipNames?.findIndex(name=>currentShipName.startsWith(name))??-1,initial=savedModel>=0?savedModel:(window.NaveStarShipModels?.[current]??0);selectShip(initial)});  button.addEventListener('click',async()=>{const model=window.NaveStarShipModels?.[currentModel];if(!model){message('Não foi possível identificar esta nave.');return}button.disabled=true;button.textContent='ATUALIZANDO HANGAR…';try{const response=await fetch('hangar-activate.php',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({model,visualModel:currentModel,visualName:window.NaveStarShipNames?.[currentModel]}),credentials:'same-origin'});const data=await response.json();if(!response.ok||!data.ok)throw new Error(data.error||'Não foi possível selecionar a nave.');button.textContent='NAVE SELECIONADA';message(data.message||'Nave selecionada. Voltando ao jogo…');setTimeout(()=>location.href='index.php',800)}catch(error){message(error.message);button.disabled=false;button.textContent='SELECIONAR ESTA NAVE'}});
+  window.addEventListener('load',()=>{let savedModel=window.NaveStarShipNames?.findIndex(name=>currentShipName.startsWith(name))??-1,initial=savedModel>=0?savedModel:(window.NaveStarShipModels?.[current]??0);selectShip(initial)});  button.addEventListener('click',async()=>{const model=window.NaveStarShipModels?.[currentModel];if(!model){message('Não foi possível identificar esta nave.');return}button.disabled=true;button.textContent='ATUALIZANDO HANGAR…';try{const response=await NaveApi.request('hangar-activate.php',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({model,visualModel:currentModel,visualName:window.NaveStarShipNames?.[currentModel]}),credentials:'same-origin'});const data=await response.json();if(!response.ok||!data.ok)throw new Error(data.error||'Não foi possível selecionar a nave.');button.textContent='NAVE SELECIONADA';message(data.message||'Nave selecionada. Voltando ao jogo…');setTimeout(()=>location.href='index.php',800)}catch(error){message(error.message);button.disabled=false;button.textContent='SELECIONAR ESTA NAVE'}});
  })();
  </script>
 </body>

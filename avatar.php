@@ -63,7 +63,7 @@ function h(string $value): string { return htmlspecialchars($value, ENT_QUOTES |
 <!doctype html>
 <html lang="pt-BR">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="csrf-token" content="<?= h($_SESSION['csrf_token']) ?>"><script src="js/api-client.js?v=20261123-csrf1"></script>
 <title>Escolher piloto · NAVE</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
@@ -112,7 +112,7 @@ const form=document.querySelector('#avatarForm'),submitButton=form.querySelector
 async function saveSelectedAvatar(){
   submitButton.disabled=true;submitButton.textContent='SALVANDO AVATAR…';
   try{
-    const response=await fetch(form.action||location.href,{method:'POST',body:new FormData(form),headers:{'X-Requested-With':'XMLHttpRequest','Accept':'application/json'},credentials:'same-origin'});
+    const response=await NaveApi.request(form.action||location.href,{method:'POST',body:new FormData(form),headers:{'X-Requested-With':'XMLHttpRequest','Accept':'application/json'}});
     const result=await response.json();
     if(!response.ok||!result.ok)throw new Error(result.error||'Não foi possível salvar o personagem.');
     const message=document.querySelector('.message');

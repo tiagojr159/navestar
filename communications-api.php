@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/src/Database/SchemaGuard.php';
+require_once __DIR__ . '/src/Services/StationRoomService.php';
+
 function commsText($value): string
 {
     if (!is_string($value) || !preg_match('//u', $value)) throw new InvalidArgumentException('Mensagem inválida.');
@@ -23,11 +26,9 @@ function commsIceServers(): array
 
 function commsEnsureSchema(PDO $pdo): void
 {
-    // The last migration table marks a completed installation, avoiding DDL on every poll.
-    try { $pdo->query('SELECT call_id FROM communication_call_meta LIMIT 0'); return; }
-    catch (PDOException $error) { if ($error->getCode() !== '42S02') throw $error; }
-    $sql = file_get_contents(__DIR__.'/database/migrations/20261111_communications.sql');
-    foreach (explode(';', $sql) as $statement) if (trim($statement) !== '') $pdo->exec($statement);
+    foreach (['communication_messages','communication_reads','communication_typing','communication_call_meta'] as $table) {
+        \NaveStar\Database\SchemaGuard::requireTable($pdo, $table);
+    }
 }
 
 function commsValidSignal(string $type, $payload): bool
@@ -44,7 +45,7 @@ function commsRoom(PDO $pdo, int $userId): ?array
     $q=$pdo->prepare("SELECT so.station_id,so.room_pos_z,ss.code,ss.name FROM station_occupants so JOIN space_stations ss ON ss.id=so.station_id WHERE so.user_id=? AND so.mode='station' LIMIT 1");
     $q->execute([$userId]); $row=$q->fetch(PDO::FETCH_ASSOC);
     if (!$row) return null;
-    $room=mpStationRoomCode((string)$row['code'],(float)$row['room_pos_z']);
+    $room=\NaveStar\Services\StationRoomService::roomCode((string)$row['code'],(float)$row['room_pos_z']);
     $labels=['airlock'=>'Eclusa','command'=>'Ponte de comando','observatory'=>'Observatório','geology'=>'Geologia','workshop'=>'Oficina','medical'=>'Enfermaria','quarters'=>'Alojamentos','hydroponics'=>'Hidroponia','communications'=>'Comunicações','surface-hangar'=>'Hangar da superfície','corridor'=>'Corredor','habitat'=>'Habitat'];
     return ['key'=>'room:'.$row['station_id'].':'.$room,'name'=>$row['name'].' · '.($labels[$room]??'Compartimento'),'stationId'=>(int)$row['station_id']];
 }

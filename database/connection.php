@@ -16,8 +16,18 @@ function db(): PDO
     }
 
     $projectRoot = dirname(__DIR__);
-    $configPath = $projectRoot . '/config.php';
+    $externalConfig = getenv('NAVE_CONFIG_PATH');
+    $configPath = is_string($externalConfig) && trim($externalConfig) !== ''
+        ? trim($externalConfig)
+        : $projectRoot . '/config.php';
+    $isAbsolute = preg_match('/^(?:[A-Za-z]:[\\\\\/]|[\\\\\/]{1,2})/', $configPath) === 1;
+    if (!$isAbsolute) {
+        throw new RuntimeException('NAVE_CONFIG_PATH deve ser um caminho absoluto.');
+    }
     if (!is_file($configPath)) {
+        if (is_string($externalConfig) && trim($externalConfig) !== '') {
+            throw new RuntimeException('O arquivo de configuracao privado nao foi encontrado.');
+        }
         $configPath = $projectRoot . '/config.example.php';
     }
 

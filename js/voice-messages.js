@@ -146,7 +146,7 @@
         form.append('duration_ms', compose.dataset.duration || '1');
         const extension = recordedBlob.type.includes('mp4') ? 'm4a' : recordedBlob.type.includes('ogg') ? 'ogg' : 'webm';
         form.append('audio', recordedBlob, 'mensagem.' + extension);
-        const response = await fetch(api + '?action=voice-message-send', { method: 'POST', body: form, cache: 'no-store' });
+        const response = await NaveApi.request(api + '?action=voice-message-send', { method: 'POST', body: form, cache: 'no-store' });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Não foi possível enviar o áudio.');
         const sentText = target.channel === 'station' ? `Aviso enviado para ${Number(data.recipients || 0)} pessoa(s) nestá estação.` : target.channel === 'open' ? `Transmissao enviada para ${Number(data.recipients || 0)} nave(s) proximas.` : 'Mensagem enviada para ' + target.name + '.';

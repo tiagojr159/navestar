@@ -256,7 +256,7 @@ document.head.appendChild(stationDashboardStyle);
   async function request(action, payload, query='', timeoutMs=0) {
     const controller=timeoutMs>0?new AbortController():null,timer=controller?setTimeout(()=>controller.abort(),timeoutMs):0;
     try {
-      const response = await fetch(api + '?action=' + encodeURIComponent(action) + query, {
+      const response = await NaveApi.request(api + '?action=' + encodeURIComponent(action) + query, {
         method: payload ? 'POST' : 'GET', headers: payload ? {'Content-Type':'application/json'} : {},
         body: payload ? JSON.stringify(payload) : undefined, cache: 'no-store', signal: controller?.signal
       });

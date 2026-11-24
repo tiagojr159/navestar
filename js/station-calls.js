@@ -57,7 +57,7 @@
   let mediaGeneration=0;
   let session = null, pending = null, peers = [], iceServers = [], busy = false, pollBusy = false, lastRoom = null;const earlyIce=new Map();
   async function request(action, body) {
-    const response = await fetch(api + '?action=' + action, {method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,cache:'no-store'});
+    const response = await NaveApi.request(api + '?action=' + action, {method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,cache:'no-store'});
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Falha na chamada da estação.');
     return data;

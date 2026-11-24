@@ -8,7 +8,7 @@
   async function request(action,body=null,query={}){
     const abort=new AbortController(),timer=setTimeout(()=>abort.abort(),12000);
     try{
-      const response=await fetch(api+'?'+new URLSearchParams({action,...query}),{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,cache:'no-store',credentials:'same-origin',signal:abort.signal});
+      const response=await NaveApi.request(api+'?'+new URLSearchParams({action,...query}),{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,cache:'no-store',credentials:'same-origin',signal:abort.signal});
       const result=await response.json();if(response.status===401)throw new Error('Sua sessão expirou. Entre novamente para conversar.');if(response.status===503)throw new Error('Comunicações indisponíveis. Verifique se o servidor e o banco de dados estão ativos.');if(!response.ok)throw new Error(result.error||'Não foi possível concluir a operação.');return result;
     }catch(error){if(error.name==='AbortError'||error instanceof TypeError)throw new Error('Sem conexão com o servidor. Tente novamente.');throw error;}finally{clearTimeout(timer);}
   }
@@ -62,7 +62,7 @@
   }
   const session=new core.CallSession({request,media:navigator.mediaDevices,Peer:window.RTCPeerConnection,Stream:window.MediaStream,setTimeout,clearTimeout,now:()=>Date.now(),onChange:callChange,onStream:streams,
     notify(type,id,video){if(type==='ring')socket?.ring(id,video);else socket?.notify(id);},
-    onEndError(id){const body=JSON.stringify({call_id:id});navigator.sendBeacon?.(api+'?action=call-end',new Blob([body],{type:'application/json'}));}});
+    onEndError(id){const body=JSON.stringify({call_id:id});NaveApi.request(api+'?action=call-end',{method:'POST',headers:{'Content-Type':'application/json'},body,keepalive:true}).catch(()=>{});}});
   async function configure(){
     if(configPromise)return configPromise;
     configPromise=request('comms-config').then(config=>{session.d.iceServers=config.iceServers;return config;}).catch(error=>{configPromise=null;throw error;});return configPromise;
@@ -190,7 +190,7 @@
   },1000);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden){pollCalls();loadRoster();loadMessages();}});window.addEventListener('focus',markRead);
   document.addEventListener('keydown',event=>{if(event.key==='Escape'){if(!hub.hidden)hideHub();else if(session.active())callPanel.classList.add('minimized');}});
-  window.addEventListener('pagehide',()=>{if(session.state.callId)navigator.sendBeacon?.(api+'?action=call-end',new Blob([JSON.stringify({call_id:session.state.callId})],{type:'application/json'}));session.cleanup();socket?.close();});
+  window.addEventListener('pagehide',()=>{if(session.state.callId)NaveApi.request(api+'?action=call-end',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({call_id:session.state.callId}),keepalive:true}).catch(()=>{});session.cleanup();socket?.close();});
   window.communications={startCall,openChat,open:showHub,hide:hideHub,isCalling:()=>session.active(),session,pollCalls};
   window.startPilotCall=startCall;
   configure().catch(()=>{});loadRoster();pollCalls();

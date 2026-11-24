@@ -62,7 +62,7 @@ window.createStationBank = function ({ enabled, api, stationScreen, getCargo, se
     busy = true; show();
     try {
       const resource = $('#bankResource').value;
-      const response = await fetch(api + '?action=station-bank&station=' + encodeURIComponent(station), {
+      const response = await NaveApi.request(api + '?action=station-bank&station=' + encodeURIComponent(station), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ station, operation, resource, amount: quantity })
       });
@@ -81,7 +81,7 @@ window.createStationBank = function ({ enabled, api, stationScreen, getCargo, se
     if (!enabled || !station || busy) return;
     busy = true; show();
     try {
-      const response = await fetch(api + '?action=station-bank&station=' + encodeURIComponent(station), {
+      const response = await NaveApi.request(api + '?action=station-bank&station=' + encodeURIComponent(station), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ station, operation: 'deposit_all' })
       });

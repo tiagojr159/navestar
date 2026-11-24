@@ -28,6 +28,7 @@ function environment(){
       else data={ok:true};
       return {ok:true,status:200,json:async()=>data};
     }};
+  context.NaveApi={request:(...args)=>context.fetch(...args)};
   context.window=context;vm.createContext(context);vm.runInContext(fs.readFileSync(require.resolve('../js/communications.js'),'utf8'),context);
   return {context,requests,intervals,hub:body.appended[1]};
 }

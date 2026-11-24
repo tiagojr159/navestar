@@ -1,1 +1,15 @@
 /config.php
+/call-socket-config.local.php
+/.env
+/.env.*
+!/.env.example
+/call-socket*.log
+/data/voice-messages/
+/data/ship-position*.json
+/data/ship-position.json
+/backups/
+*.bak
+*.backup
+*.dump
+*.sql.gz
+*.tmp

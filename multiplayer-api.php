@@ -3,6 +3,10 @@ declare(strict_types=1);
 
 session_set_cookie_params(['httponly' => true, 'samesite' => 'Lax']);
 session_start();
+require_once __DIR__ . '/src/Security/Csrf.php';
+if (in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['POST','PUT','PATCH','DELETE'], true)) {
+    \NaveStar\Security\Csrf::enforce($_SERVER['HTTP_X_CSRF_TOKEN'] ?? null);
+}
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 
@@ -19,28 +23,13 @@ function mpInput(): array
     return is_array($input) ? $input : [];
 }
 
-function mpIsMoonBase(string $stationCode): bool
+function mpSessionSetNested(string $key, $itemKey, $value): void
 {
-    return in_array($stationCode, ['luna-base','ganymede-base','titan-base','callisto-base','io-base','europa-base','triton-base','titania-base','rhea-base','oberon-base','iapetus-base'], true);
-}
-
-function mpStationRoomCode(string $stationCode, float $roomZ): string
-{
-    if (mpIsMoonBase($stationCode)) {
-        $rooms = ['airlock','command','observatory','geology','workshop','medical','quarters','hydroponics','communications','surface-hangar'];
-        $index = max(0, min(9, (int)floor(($roomZ - 24.8) / 19.0)));
-        return $rooms[$index];
-    }
-    return $roomZ < 109 ? 'observatory' : ($roomZ < 143 ? 'corridor' : 'habitat');
-}
-
-function mpStationRoomRange(string $stationCode, float $roomZ): array
-{
-    if (mpIsMoonBase($stationCode)) {
-        $index = max(0, min(9, (int)floor(($roomZ - 24.8) / 19.0)));
-        return [24.8 + $index * 19.0, $index === 9 ? 221.0 : 24.8 + ($index + 1) * 19.0];
-    }
-    return $roomZ < 109 ? [0.0,109.0] : ($roomZ < 143 ? [109.0,143.0] : [143.0,221.0]);
+    if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+    $items = is_array($_SESSION[$key] ?? null) ? $_SESSION[$key] : [];
+    $items[$itemKey] = $value;
+    $_SESSION[$key] = $items;
+    session_write_close();
 }
 
 function mpAreFriends(PDO $pdo, int $first, int $second): bool
@@ -59,94 +48,20 @@ function mpCallId(): string
     return substr($hex, 0, 8) . '-' . substr($hex, 8, 4) . '-' . substr($hex, 12, 4) . '-' . substr($hex, 16, 4) . '-' . substr($hex, 20);
 }
 
-function mpEnsureFuelDrops(PDO $pdo): void {
-    static $ready=false; if ($ready) return;
-    $column=$pdo->query("SHOW COLUMNS FROM ship_wrecks LIKE 'fuel_units'")->fetch(PDO::FETCH_ASSOC);
-    if (!$column) $pdo->exec('ALTER TABLE ship_wrecks ADD COLUMN fuel_units DECIMAL(8,2) UNSIGNED NOT NULL DEFAULT 0 AFTER energy_units');
-    $ready=true;
-}
+function mpEnsureFuelDrops(PDO $pdo): void {\NaveStar\Database\SchemaGuard::requireColumn($pdo, 'ship_wrecks', 'fuel_units'); }
 function mpEnsurePlayerKillerMarks(PDO $pdo): void
 {
-    static $ready = false;
-    if ($ready) return;
-    $column = $pdo->query("SHOW COLUMNS FROM ship_wrecks LIKE 'destroyed_by_user_id'")->fetch(PDO::FETCH_ASSOC);
-    $killsColumn = $pdo->query("SHOW COLUMNS FROM users LIKE 'ship_kills'")->fetch(PDO::FETCH_ASSOC);
-    if (!$killsColumn) $pdo->exec('ALTER TABLE users ADD COLUMN ship_kills INT UNSIGNED NOT NULL DEFAULT 0');
-    if (!$column) $pdo->exec('ALTER TABLE ship_wrecks ADD COLUMN destroyed_by_user_id BIGINT UNSIGNED NULL, ADD KEY ix_ship_wreck_destroyed_by (destroyed_by_user_id)');
-    $ready = true;
+    \NaveStar\Database\SchemaGuard::requireColumn($pdo, 'users', 'ship_kills');
+    \NaveStar\Database\SchemaGuard::requireColumn($pdo, 'ship_wrecks', 'destroyed_by_user_id');
 }
-
 function mpEnsureTowSystem(PDO $pdo): void
 {
-    $equipmentExists=$pdo->query("SELECT 1 FROM equipment WHERE code='tractor_array' LIMIT 1")->fetchColumn();
-    if(!$equipmentExists)$pdo->exec("INSERT INTO equipment (code,name,equipment_type,description,damage,ammo_capacity,quantity_per_purchase,price_credits,iron_cost_kg,nickel_cost_kg,cobalt_cost_kg,weight_kg) VALUES ('tractor_array','Conjunto rebocador orbital','engine','Emissor de tracao para arrastar naves desativadas ate uma estaÃ§Ã£o.',0,0,1,12000,250,0,0,380)");
-    $pdo->exec("CREATE TABLE IF NOT EXISTS ship_tows (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-        tug_ship_id BIGINT UNSIGNED NOT NULL,
-        rescued_ship_id BIGINT UNSIGNED NOT NULL,
-        wreck_id BIGINT UNSIGNED NOT NULL,
-        rescuer_user_id BIGINT UNSIGNED NOT NULL,
-        station_id BIGINT UNSIGNED NOT NULL,
-        origin_x DOUBLE NOT NULL, origin_z DOUBLE NOT NULL,
-        destination_x DOUBLE NOT NULL, destination_z DOUBLE NOT NULL,
-        duration_seconds SMALLINT UNSIGNED NOT NULL DEFAULT 45,
-        status ENUM('active','completed','cancelled') NOT NULL DEFAULT 'active',
-        started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        completed_at TIMESTAMP NULL DEFAULT NULL,
-        PRIMARY KEY (id), UNIQUE KEY uq_ship_tows_wreck (wreck_id),
-        KEY ix_ship_tows_active (status,started_at),
-        CONSTRAINT fk_ship_tows_tug FOREIGN KEY (tug_ship_id) REFERENCES ships(id) ON DELETE CASCADE,
-        CONSTRAINT fk_ship_tows_rescued FOREIGN KEY (rescued_ship_id) REFERENCES ships(id) ON DELETE CASCADE,
-        CONSTRAINT fk_ship_tows_wreck FOREIGN KEY (wreck_id) REFERENCES ship_wrecks(id) ON DELETE CASCADE,
-        CONSTRAINT fk_ship_tows_user FOREIGN KEY (rescuer_user_id) REFERENCES users(id) ON DELETE CASCADE,
-        CONSTRAINT fk_ship_tows_station FOREIGN KEY (station_id) REFERENCES space_stations(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB");
-    $pdo->exec("CREATE TABLE IF NOT EXISTS ship_rescue_requests (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-        tug_ship_id BIGINT UNSIGNED NOT NULL,
-        target_ship_id BIGINT UNSIGNED NOT NULL,
-        tug_user_id BIGINT UNSIGNED NOT NULL,
-        target_user_id BIGINT UNSIGNED NOT NULL,
-        station_id BIGINT UNSIGNED NOT NULL,
-        origin_x DOUBLE NOT NULL, origin_z DOUBLE NOT NULL,
-        destination_x DOUBLE NOT NULL, destination_z DOUBLE NOT NULL,
-        duration_seconds SMALLINT UNSIGNED NOT NULL DEFAULT 60,
-        status ENUM('pending','active','completed','declined','cancelled') NOT NULL DEFAULT 'pending',
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        accepted_at TIMESTAMP NULL DEFAULT NULL,
-        completed_at TIMESTAMP NULL DEFAULT NULL,
-        PRIMARY KEY (id),
-        KEY ix_ship_rescue_target (target_user_id,status,created_at),
-        KEY ix_ship_rescue_tug (tug_user_id,status,created_at),
-        KEY ix_ship_rescue_active (status,created_at),
-        CONSTRAINT fk_ship_rescue_tug FOREIGN KEY (tug_ship_id) REFERENCES ships(id) ON DELETE CASCADE,
-        CONSTRAINT fk_ship_rescue_target FOREIGN KEY (target_ship_id) REFERENCES ships(id) ON DELETE CASCADE,
-        CONSTRAINT fk_ship_rescue_tug_user FOREIGN KEY (tug_user_id) REFERENCES users(id) ON DELETE CASCADE,
-        CONSTRAINT fk_ship_rescue_target_user FOREIGN KEY (target_user_id) REFERENCES users(id) ON DELETE CASCADE,
-        CONSTRAINT fk_ship_rescue_station FOREIGN KEY (station_id) REFERENCES space_stations(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB");
+    foreach (['ship_tows', 'ship_rescue_requests', 'equipment'] as $table) \NaveStar\Database\SchemaGuard::requireTable($pdo, $table);
+    if (!$pdo->query("SELECT 1 FROM equipment WHERE code='tractor_array' LIMIT 1")->fetchColumn()) {
+        throw new RuntimeException('Equipamento rebocador ausente. Execute php bin/migrate.php migrate.');
+    }
 }
-
-function mpEnsurePassengerRequests(PDO $pdo): void
-{
-    $pdo->exec("CREATE TABLE IF NOT EXISTS ship_passenger_requests (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-        ship_id BIGINT UNSIGNED NOT NULL,
-        passenger_id BIGINT UNSIGNED NOT NULL,
-        origin_station_id BIGINT UNSIGNED NOT NULL,
-        destination_station_id BIGINT UNSIGNED NOT NULL,
-        status ENUM('pending','accepted','declined','cancelled') NOT NULL DEFAULT 'pending',
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        KEY ix_passenger_requests_ship (ship_id,status,created_at),
-        KEY ix_passenger_requests_user (passenger_id,status,created_at),
-        CONSTRAINT fk_passenger_request_ship FOREIGN KEY (ship_id) REFERENCES ships(id) ON DELETE CASCADE,
-        CONSTRAINT fk_passenger_request_user FOREIGN KEY (passenger_id) REFERENCES users(id) ON DELETE CASCADE,
-        CONSTRAINT fk_passenger_request_origin FOREIGN KEY (origin_station_id) REFERENCES space_stations(id) ON DELETE CASCADE,
-        CONSTRAINT fk_passenger_request_destination FOREIGN KEY (destination_station_id) REFERENCES space_stations(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB");
-}
-
+function mpEnsurePassengerRequests(PDO $pdo): void { \NaveStar\Database\SchemaGuard::requireTable($pdo, 'ship_passenger_requests'); }
 function mpTradeOffer(mixed $value): array
 {
     if (!is_array($value)) mpResponse(['error' => 'A oferta de troca estÃ¡ invÃ¡lida.'], 400);
@@ -163,89 +78,37 @@ $userId = (int)($_SESSION['user_id'] ?? 0);
 if ($userId < 1) {
     mpResponse(['error' => 'Entre na sua conta para jogar no multiplayer.'], 401);
 }
+// Release the session lock before database work so slow/offline MySQL cannot
+// serialize page loads and the many multiplayer polling requests.
+session_write_close();
 
 try {
     require_once __DIR__ . '/database/connection.php';
     require_once __DIR__ . '/voice-message-storage.php';
     require_once __DIR__ . '/call-socket-auth.php';
-    require_once __DIR__ . '/rare-asteroids.php';
+require_once __DIR__ . '/rare-asteroids.php';
+require_once __DIR__ . '/src/Database/SchemaGuard.php';
+require_once __DIR__ . '/src/Services/StationRoomService.php';
+require_once __DIR__ . '/src/Services/StationBankService.php';
+require_once __DIR__ . '/src/Controllers/UserLayoutController.php';
     require_once __DIR__ . '/combat-rules.php';
     $pdo = db();
     $action = $_GET['action'] ?? '';
     require_once __DIR__ . '/communications-api.php';
     commsHandle($pdo, $userId, (string)$action);
 
-    if ($action === 'control-layout') {
-        $pdo->exec("CREATE TABLE IF NOT EXISTS user_control_layouts (
-            user_id BIGINT UNSIGNED NOT NULL,
-            tool_order JSON NOT NULL,
-            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            PRIMARY KEY (user_id),
-            CONSTRAINT fk_user_control_layout_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        ) ENGINE=InnoDB");
-        if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-            $layout = $pdo->prepare('SELECT tool_order FROM user_control_layouts WHERE user_id=? LIMIT 1');
-            $layout->execute([$userId]);
-            $saved = $layout->fetchColumn();
-            mpResponse(['order' => $saved ? (json_decode((string)$saved, true) ?: null) : null]);
-        }
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error' => 'Use GET ou POST.'], 405);
-        $order = mpInput()['order'] ?? null;
-        $allowed = ['route','cargo','friends-online','telemetry','ship-status','maneuver'];
-        $validOrder = is_array($order)
-            && count($order) === count($allowed)
-            && count(array_filter($order, static fn($item) => is_string($item) && in_array($item, $allowed, true))) === count($allowed)
-            && count(array_unique($order)) === count($allowed);
-        if (!$validOrder) {
-            mpResponse(['error' => 'A ordem das ferramentas Ã© invÃ¡lida.'], 400);
-        }
-        $save = $pdo->prepare('INSERT INTO user_control_layouts (user_id,tool_order) VALUES (?,?) ON DUPLICATE KEY UPDATE tool_order=VALUES(tool_order)');
-        $save->execute([$userId, json_encode(array_values($order), JSON_UNESCAPED_UNICODE)]);
-        mpResponse(['ok' => true, 'order' => array_values($order)]);
+    if (in_array($action, ['control-layout', 'station-panel-layout'], true)) {
+        $layoutMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+        $layoutInput = $layoutMethod === 'POST' ? mpInput() : [];
+        $result = \NaveStar\Controllers\UserLayoutController::handle($pdo, $userId, (string) $action, $layoutMethod, $layoutInput);
+        mpResponse($result['body'], $result['status']);
     }
-
-    if ($action === 'station-panel-layout') {
-        $pdo->exec("CREATE TABLE IF NOT EXISTS user_station_panel_layouts (
-            user_id BIGINT UNSIGNED NOT NULL,
-            panel_order JSON NOT NULL,
-            collapsed_panels JSON NOT NULL,
-            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            PRIMARY KEY (user_id),
-            CONSTRAINT fk_station_panel_layout_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        ) ENGINE=InnoDB");
-        if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-            $layout = $pdo->prepare('SELECT panel_order, collapsed_panels FROM user_station_panel_layouts WHERE user_id=? LIMIT 1');
-            $layout->execute([$userId]);
-            $saved = $layout->fetch(PDO::FETCH_ASSOC);
-            mpResponse([
-                'order' => $saved ? (json_decode((string)$saved['panel_order'], true) ?: null) : null,
-                'collapsed' => $saved ? (json_decode((string)$saved['collapsed_panels'], true) ?: []) : []
-            ]);
-        }
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error' => 'Use GET ou POST.'], 405);
-        $input = mpInput();
-        $order = $input['order'] ?? null;
-        $allowed = ['ships','users','inventory','events'];
-        $validOrder = is_array($order)
-            && count($order) === count($allowed)
-            && count(array_filter($order, static fn($item) => is_string($item) && in_array($item, $allowed, true))) === count($allowed)
-            && count(array_unique($order)) === count($allowed);
-        $collapsed = $input['collapsed'] ?? [];
-        $validCollapsed = is_array($collapsed)
-            && count($collapsed) <= count($allowed)
-            && count(array_filter($collapsed, static fn($value, $key) => is_string($key) && in_array($key, $allowed, true) && is_bool($value), ARRAY_FILTER_USE_BOTH)) === count($collapsed);
-        if (!$validOrder || !$validCollapsed) mpResponse(['error' => 'A organizaÃ§Ã£o dos painÃ©is da estaÃ§Ã£o Ã© invÃ¡lida.'], 400);
-        $save = $pdo->prepare('INSERT INTO user_station_panel_layouts (user_id,panel_order,collapsed_panels) VALUES (?,?,?) ON DUPLICATE KEY UPDATE panel_order=VALUES(panel_order),collapsed_panels=VALUES(collapsed_panels)');
-        $save->execute([$userId, json_encode(array_values($order), JSON_UNESCAPED_UNICODE), json_encode($collapsed, JSON_UNESCAPED_UNICODE)]);
-        mpResponse(['ok' => true, 'order' => array_values($order), 'collapsed' => $collapsed]);
-    }
-
     if (in_array($action, ['station-call-status','station-call-signal','station-call-poll'], true)) {
         $here=$pdo->prepare("SELECT so.station_id,so.room_pos_z,ss.code FROM station_occupants so JOIN space_stations ss ON ss.id=so.station_id WHERE so.user_id=? AND so.mode='station' LIMIT 1");
         $here->execute([$userId]); $location=$here->fetch(PDO::FETCH_ASSOC);
         if(!$location) mpResponse(['active'=>false]);
         $stationId=(int)$location['station_id']; $roomZ=(float)$location['room_pos_z'];
-        $roomCode=mpStationRoomCode((string)$location['code'],$roomZ);[$roomMin,$roomMax]=mpStationRoomRange((string)$location['code'],$roomZ);
+        $roomCode=\NaveStar\Services\StationRoomService::roomCode((string)$location['code'],$roomZ);[$roomMin,$roomMax]=\NaveStar\Services\StationRoomService::roomRange((string)$location['code'],$roomZ);
         $pdo->prepare('UPDATE users SET last_seen_at=NOW() WHERE id=?')->execute([$userId]);
         $peerQuery=$pdo->prepare("SELECT so.user_id,u.username,so.room_pos_z FROM station_occupants so JOIN users u ON u.id=so.user_id WHERE so.station_id=? AND so.mode='station' AND so.user_id<>? AND so.room_pos_z>=? AND so.room_pos_z<? AND u.is_active=1 AND u.last_seen_at>=DATE_SUB(NOW(),INTERVAL 20 SECOND) ORDER BY so.user_id");
         $peerQuery->execute([$stationId,$userId,$roomMin,$roomMax]); $peers=array_map(static fn($r)=>['id'=>(int)$r['user_id'],'name'=>$r['username']],$peerQuery->fetchAll(PDO::FETCH_ASSOC));
@@ -274,7 +137,7 @@ try {
 
     if (in_array($action, ['station-voice-status','station-voice-signal','station-voice-poll'], true)) {
         $here=$pdo->prepare("SELECT so.station_id,so.room_pos_z,ss.code FROM station_occupants so JOIN space_stations ss ON ss.id=so.station_id WHERE so.user_id=? AND so.mode='station' LIMIT 1");$here->execute([$userId]);$hereRow=$here->fetch(PDO::FETCH_ASSOC);$stationId=(int)($hereRow['station_id']??0);if(!$stationId)mpResponse(['active'=>false]);
-        $z=(float)$hereRow['room_pos_z'];$roomCode=mpStationRoomCode((string)$hereRow['code'],$z);[$min,$max]=mpStationRoomRange((string)$hereRow['code'],$z);$pdo->prepare('UPDATE users SET last_seen_at=NOW() WHERE id=?')->execute([$userId]);
+        $z=(float)$hereRow['room_pos_z'];$roomCode=\NaveStar\Services\StationRoomService::roomCode((string)$hereRow['code'],$z);[$min,$max]=\NaveStar\Services\StationRoomService::roomRange((string)$hereRow['code'],$z);$pdo->prepare('UPDATE users SET last_seen_at=NOW() WHERE id=?')->execute([$userId]);
         $q=$pdo->prepare("SELECT so.user_id,u.username FROM station_occupants so JOIN users u ON u.id=so.user_id WHERE so.station_id=? AND so.mode='station' AND so.user_id<>? AND so.room_pos_z>=? AND so.room_pos_z<? AND u.is_active=1 AND u.last_seen_at>=DATE_SUB(NOW(),INTERVAL 20 SECOND) ORDER BY so.user_id");$q->execute([$stationId,$userId,$min,$max]);$peers=array_map(static fn($r)=>['id'=>(int)$r['user_id'],'name'=>$r['username']],$q->fetchAll(PDO::FETCH_ASSOC));
         if($action==='station-voice-status'){$ice=[['urls'=>'stun:stun.l.google.com:19302'],['urls'=>'stun:stun.cloudflare.com:3478']];$url=(string)(getenv('NAVE_TURN_URLS')?:'');$user=(string)(getenv('NAVE_TURN_USERNAME')?:'');$pass=(string)(getenv('NAVE_TURN_PASSWORD')?:'');if($url!==''&&$user!==''&&$pass!=='')$ice[]=['urls'=>array_map('trim',explode(',',$url)),'username'=>$user,'credential'=>$pass];mpResponse(['active'=>true,'stationId'=>$stationId,'roomCode'=>$roomCode,'userId'=>$userId,'peers'=>$peers,'iceServers'=>$ice]);}
         if($action==='station-voice-signal'){if($_SERVER['REQUEST_METHOD']!=='POST')mpResponse(['error'=>'Use POST.'],405);$in=mpInput();$type=(string)($in['type']??'');$peer=(int)($in['peer_id']??0);$payload=$in['payload']??null;if(!in_array($type,['offer','answer','ice','close'],true)||($type!=='close'&&!is_array($payload)))mpResponse(['error'=>'Sinal invalido.'],400);$ids=array_map(static fn($p)=>(int)$p['id'],$peers);if($peer===$userId||!in_array($peer,$ids,true))mpResponse(['error'=>'Jogador fora destÃ¡ sala.'],403);$encoded=json_encode($payload,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);if($encoded!==false&&strlen($encoded)>16000)mpResponse(['error'=>'Sinal excede limite.'],413);$pdo->prepare('INSERT INTO station_voice_signals_v2(station_id,sender_id,recipient_id,signal_type,payload) VALUES(?,?,?,?,?)')->execute([$stationId,$userId,$peer,$type,$encoded]);mpResponse(['ok'=>true]);}
@@ -570,7 +433,7 @@ try {
             $free=max(0,(int)$current['cargo_capacity_kg']-(int)$weightQuery->fetchColumn()-(int)ceil((float)$current['fuel_units']*0.5)-(int)$current['iron_kg']-(int)$current['nickel_kg']-(int)$current['cobalt_kg']-(int)$current['ice_kg']);
             $accepted=[]; foreach(['Ferro'=>'iron_kg','Niquel'=>'nickel_kg','Cobalto'=>'cobalt_kg','Gelo'=>'ice_kg'] as $mineral=>$column){$accepted[$column]=min($free,$deltas[$mineral]);$free-=$accepted[$column];}
             $pdo->prepare('UPDATE ships SET iron_kg=iron_kg+?,nickel_kg=nickel_kg+?,cobalt_kg=cobalt_kg+?,ice_kg=ice_kg+? WHERE id=?')->execute([$accepted['iron_kg'],$accepted['nickel_kg'],$accepted['cobalt_kg'],$accepted['ice_kg'],$shipId]);
-            $_SESSION['crew_cargo_baseline'][$shipId]=['Ferro'=>$iron,'Niquel'=>$nickel,'Cobalto'=>$cobalt,'Gelo'=>$ice];
+            mpSessionSetNested('crew_cargo_baseline',$shipId,['Ferro'=>$iron,'Niquel'=>$nickel,'Cobalto'=>$cobalt,'Gelo'=>$ice]);
             $pdo->prepare('UPDATE users SET last_seen_at=NOW() WHERE id=?')->execute([$userId]);
             mpResponse(['ok'=>true,'role'=>'copilot','acceptedCargo'=>$accepted,'x'=>(float)$crewShip['pos_x'],'z'=>(float)$crewShip['pos_z'],'yaw'=>(float)$crewShip['heading']]);
         }
@@ -630,7 +493,7 @@ try {
         if (!$ship || (int)$ship['hull_hp']<1 || $ship['docked_station_id']!==null) { $pdo->rollBack(); mpResponse(['error'=>'Nave indisponÃ­vel para receber impacto.'],409); }
         $shipId=(int)$ship['id']; $last=(int)($_SESSION['asteroid_impact_at'][$shipId]??0);
         if (time()-$last<2) { $pdo->rollBack(); mpResponse(['hull'=>(int)$ship['hull_hp'],'cooldown'=>true]); }
-        $_SESSION['asteroid_impact_at'][$shipId]=time(); $hull=max(0,(int)$ship['hull_hp']-8);
+        mpSessionSetNested('asteroid_impact_at',$shipId,time()); $hull=max(0,(int)$ship['hull_hp']-8);
         $pdo->prepare('UPDATE ships SET hull_hp=?,speed=0 WHERE id=?')->execute([$hull,$shipId]); $pdo->commit();
         mpResponse(['ok'=>true,'hull'=>$hull,'damage'=>8,'destroyed'=>$hull===0]);
     }
@@ -703,7 +566,7 @@ try {
         $crewAttackQuery=$pdo->prepare("SELECT captain_id FROM ship_crew WHERE copilot_id=? AND status='active' LIMIT 1"); $crewAttackQuery->execute([$userId]);
         $attackerUserId=(int)($crewAttackQuery->fetchColumn() ?: $userId);
         // A row per ship/weapon serializes cadence across pilot, copilot and browser tabs.
-        $pdo->exec('CREATE TABLE IF NOT EXISTS ship_weapon_cooldowns (ship_id BIGINT UNSIGNED NOT NULL, weapon_kind VARCHAR(16) NOT NULL, fired_at_ms BIGINT UNSIGNED NOT NULL DEFAULT 0, PRIMARY KEY(ship_id,weapon_kind)) ENGINE=InnoDB');
+        \NaveStar\Database\SchemaGuard::requireTable($pdo, 'ship_weapon_cooldowns');
         $pdo->beginTransaction();
         $shipsQuery = $pdo->prepare('SELECT id,user_id,pos_x,pos_y,pos_z,heading,pitch,hull_hp,ship_class,iron_kg,nickel_kg,cobalt_kg,energy_units,docked_station_id FROM ships WHERE user_id IN (?,?) AND is_active=1 ORDER BY user_id FOR UPDATE');
         $shipsQuery->execute([$attackerUserId,$targetUserId]);
@@ -792,7 +655,7 @@ try {
         $cobalt=min((int)$wreck['cobalt_kg'],$capacity);
         $energy=(int)$wreck['energy_units'];
         $pdo->prepare('UPDATE ships SET iron_kg=iron_kg+?,nickel_kg=nickel_kg+?,cobalt_kg=cobalt_kg+?,energy_units=energy_units+? WHERE id=?')->execute([$iron,$nickel,$cobalt,$energy,(int)$ship['id']]);
-        if ((int)$ship['user_id']!==$userId) $_SESSION['crew_cargo_baseline'][(int)$ship['id']]=['Ferro'=>(int)$ship['iron_kg']+$iron,'Niquel'=>(int)$ship['nickel_kg']+$nickel,'Cobalto'=>(int)$ship['cobalt_kg']+$cobalt];
+        if ((int)$ship['user_id']!==$userId) mpSessionSetNested('crew_cargo_baseline',(int)$ship['id'],['Ferro'=>(int)$ship['iron_kg']+$iron,'Niquel'=>(int)$ship['nickel_kg']+$nickel,'Cobalto'=>(int)$ship['cobalt_kg']+$cobalt]);
         $remainingIron=(int)$wreck['iron_kg']-$iron; $remainingNickel=(int)$wreck['nickel_kg']-$nickel; $remainingCobalt=(int)$wreck['cobalt_kg']-$cobalt;
         if ($remainingIron+$remainingNickel+$remainingCobalt===0) $pdo->prepare('UPDATE ship_wrecks SET claimed_by=? WHERE id=?')->execute([$userId,$wreckId]);
         else $pdo->prepare('UPDATE ship_wrecks SET iron_kg=?,nickel_kg=?,cobalt_kg=?,energy_units=0 WHERE id=?')->execute([$remainingIron,$remainingNickel,$remainingCobalt,$wreckId]);
@@ -838,7 +701,7 @@ try {
         }
         $offer=$valid[$missionId]??null;
         if(!$offer||$type!==$offer['type']||$origin!==$offer['origin']||$destination!==$offer['destination']||$amount!==$offer['amount']||$reward!==$offer['reward']||$delivered<0||$delivered>$amount)mpResponse(['error'=>'Dados do contrato invÃ¡lidos.'],400);
-        $pdo->exec("CREATE TABLE IF NOT EXISTS mission_payouts (user_id BIGINT UNSIGNED NOT NULL,mission_id VARCHAR(100) NOT NULL,paid_credits INT UNSIGNED NOT NULL DEFAULT 0,delivered_count SMALLINT UNSIGNED NOT NULL DEFAULT 0,updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY(user_id,mission_id),CONSTRAINT fk_mission_payout_user FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE) ENGINE=InnoDB");
+        \NaveStar\Database\SchemaGuard::requireTable($pdo, 'mission_payouts');
         $pdo->beginTransaction();
         $pdo->prepare('INSERT IGNORE INTO mission_payouts(user_id,mission_id) VALUES(?,?)')->execute([$userId,$missionId]);
         $payoutQuery=$pdo->prepare('SELECT paid_credits,delivered_count FROM mission_payouts WHERE user_id=? AND mission_id=? FOR UPDATE');$payoutQuery->execute([$userId,$missionId]);$payout=$payoutQuery->fetch(PDO::FETCH_ASSOC);
@@ -1039,12 +902,13 @@ try {
         if ((int)$station['hull_hp']<1) mpResponse(['error'=>'Terminal offline: estaÃ§Ã£o desativada.'],409);
         $method=$_SERVER['REQUEST_METHOD'];
         if ($method==='POST') {
-            $input=mpInput(); $operation=(string)($input['operation']??''); $resource=(string)($input['resource']??'');
-            $amount=filter_var($input['amount']??null,FILTER_VALIDATE_INT);
-            $fields=['iron'=>'iron_kg','nickel'=>'nickel_kg','cobalt'=>'cobalt_kg','ice'=>'ice_kg','energy'=>'energy_units','fuel'=>'fuel_units'];
-            $bulk=$operation==='deposit_all';
-            $equipmentResource=str_starts_with($resource,'equipment:');
-            if ((!$bulk&&!in_array($operation,['deposit','withdraw'],true)) || (!$bulk&&!isset($fields[$resource])&&$resource!=='credits'&&!$equipmentResource) || ($equipmentResource&&$operation!=='withdraw') || (!$bulk&&($amount===false || $amount<1 || $amount>1000000))) mpResponse(['error'=>'Operacao, recurso ou quantidade invalida.'],400);
+            try {
+                $request=\NaveStar\Services\StationBankService::parseRequest(mpInput());
+            } catch (InvalidArgumentException $error) {
+                mpResponse(['error'=>$error->getMessage()],400);
+            }
+            $operation=$request['operation']; $resource=$request['resource']; $amount=$request['amount'];
+            $fields=$request['fields']; $bulk=$request['bulk']; $equipmentResource=$request['equipmentResource'];
             $pdo->beginTransaction();
             $shipQuery=$pdo->prepare('SELECT id,pos_x,pos_z,hull_hp,iron_kg,nickel_kg,cobalt_kg,ice_kg,energy_units,cargo_capacity_kg,fuel_units,fuel_capacity_units,(SELECT COALESCE(SUM(e.weight_kg),0) FROM ship_equipment se JOIN equipment e ON e.id=se.equipment_id WHERE se.ship_id=ships.id AND se.is_equipped=1 AND se.quantity>0) AS weapon_weight FROM ships WHERE user_id=? AND is_active=1 LIMIT 1 FOR UPDATE');
             $shipQuery->execute([$userId]); $ship=$shipQuery->fetch(PDO::FETCH_ASSOC);
@@ -1290,7 +1154,7 @@ try {
     if ($action === 'station-dock') {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') mpResponse(['error'=>'Use POST.'],405);
         $code=strtolower(trim((string)(mpInput()['station']??'')));
-        if (mpIsMoonBase($code)) { require_once __DIR__ . '/database/moon-bases.php'; ensureMoonBases($pdo); }
+        if (\NaveStar\Services\StationRoomService::isMoonBase($code)) { require_once __DIR__ . '/database/moon-bases.php'; ensureMoonBases($pdo); }
         if ($code === 'luna-base') { require_once __DIR__ . '/database/lunar-base.php'; ensureLunarBase($pdo); }
         $q=$pdo->prepare('SELECT id,name,pos_x,pos_z,hull_hp FROM space_stations WHERE code=? AND is_active=1 LIMIT 1'); $q->execute([$code]); $station=$q->fetch(PDO::FETCH_ASSOC);
         if (!$station) mpResponse(['error'=>'Estacao nao encontrada.'],404);
@@ -1403,7 +1267,7 @@ try {
         $manifestQuery=$pdo->prepare("SELECT p.passenger_id,u.username,p.fare_credits,dest.name AS destination_name FROM ship_passengers p JOIN users u ON u.id=p.passenger_id JOIN space_stations dest ON dest.id=p.destination_station_id WHERE p.ship_id=? AND p.status='active' ORDER BY p.boarded_at");$manifestShip=(int)($location['ship_id']??0);if(!$manifestShip){$ownShip=$pdo->prepare('SELECT id FROM ships WHERE user_id=? AND is_active=1 AND docked_station_id=? LIMIT 1');$ownShip->execute([$userId,(int)$location['station_id']]);$manifestShip=(int)$ownShip->fetchColumn();}$manifestQuery->execute([$manifestShip]);$passengerManifest=$manifestQuery->fetchAll(PDO::FETCH_ASSOC);
         $stationQuery=$pdo->prepare('SELECT id,name,code,pos_x,pos_z FROM space_stations WHERE is_active=1 AND hull_hp>0 ORDER BY name');$stationQuery->execute();$stationList=$stationQuery->fetchAll(PDO::FETCH_ASSOC);
         $canUndockQuery=$pdo->prepare("SELECT 1 FROM ships WHERE user_id=? AND is_active=1 AND docked_station_id=? AND ?='station' LIMIT 1");$canUndockQuery->execute([$userId,(int)$location['station_id'],$location['mode']]);$canUndock=(bool)$canUndockQuery->fetchColumn();$myShipQuery=$pdo->prepare('SELECT ship_name,ship_class,fuel_units,fuel_capacity_units,energy_units,iron_kg,nickel_kg,cobalt_kg,ice_kg,cargo_capacity_kg,hull_hp FROM ships WHERE user_id=? AND docked_station_id=? AND is_active=1 LIMIT 1');$myShipQuery->execute([$userId,(int)$location['station_id']]);$myShip=$myShipQuery->fetch(PDO::FETCH_ASSOC)?:null;
-        mpResponse(['inside'=>true,'selfId'=>$userId,'mode'=>$location['mode'],'role'=>$role,'canUndock'=>$canUndock,'passenger'=>$passenger?['ship'=>(string)$passenger['ship_name'],'pilot'=>(string)$passenger['pilot_name'],'pilotId'=>(int)$passenger['pilot_id'],'pilotAvatar'=>(string)$passenger['pilot_avatar'],'copilot'=>(string)($passenger['copilot_name']??''),'copilotId'=>(int)($passenger['copilot_id']??0),'copilotAvatar'=>(string)($passenger['copilot_avatar']??''),'origin'=>(string)$passenger['origin_name'],'destination'=>(string)$passenger['destination_name'],'fare'=>(int)$passenger['fare_credits'],'shipId'=>(int)$passenger['ship_id'],'capacity'=>10,'fuel'=>(float)$passenger['fuel_units'],'fuelCapacity'=>(int)$passenger['fuel_capacity_units'],'cargoCapacity'=>(int)$passenger['cargo_capacity_kg'],'cargoWeightKg'=>(int)$passenger['iron_kg']+(int)$passenger['nickel_kg']+(int)$passenger['cobalt_kg']+(int)$passenger['ice_kg']+(float)$passenger['fuel_units']*0.5,'cargo'=>['iron'=>(int)$passenger['iron_kg'],'nickel'=>(int)$passenger['nickel_kg'],'cobalt'=>(int)$passenger['cobalt_kg'],'ice'=>(int)$passenger['ice_kg'],'fuelWeightKg'=>(float)$passenger['fuel_units']*0.5],'canDisembark'=>$passenger['docked_station_id']!==null,'dockedStationId'=>$passenger['docked_station_id']===null?null:(int)$passenger['docked_station_id'],'occupants'=>array_map(static fn($r)=>['id'=>(int)$r['user_id'],'name'=>$r['username'],'avatar'=>(string)$r['avatar_code'],'mode'=>(string)$r['mode'],'roomX'=>(float)$r['room_pos_x'],'roomZ'=>(float)$r['room_pos_z'],'roomYaw'=>(float)$r['room_yaw'],'hasWeapons'=>(bool)$r['has_weapons'],'hasPk'=>(bool)$r['has_pk']],$passengerOccupants)]:null,'station'=>['id'=>(int)$location['station_id'],'code'=>$location['code'],'name'=>$location['name'],'hull'=>(int)$location['hull_hp'],'x'=>(float)$location['pos_x'],'z'=>(float)$location['pos_z']],'stations'=>array_map(static fn($r)=>['id'=>(int)$r['id'],'name'=>$r['name'],'code'=>$r['code'],'x'=>(float)$r['pos_x'],'z'=>(float)$r['pos_z']],$stationList),'occupants'=>array_map(static fn($r)=>['id'=>(int)$r['user_id'],'name'=>$r['username'],'avatar'=>(string)$r['avatar_code'],'mode'=>$r['mode'],'ship'=>$r['ship_name'],'hasShip'=>(bool)$r['has_ship'],'shipHull'=>$r['ship_hull'],'hasWeapons'=>(bool)$r['has_weapons'],'hasPk'=>(bool)$r['has_pk'],'roomX'=>(float)$r['room_pos_x'],'roomZ'=>(float)$r['room_pos_z'],'roomYaw'=>(float)$r['room_yaw'],'roomCode'=>mpStationRoomCode((string)$location['code'],(float)$r['room_pos_z'])],$occupants),'myShip'=>$myShip?['name'=>$myShip['ship_name'],'class'=>$myShip['ship_class'],'fuel'=>(float)$myShip['fuel_units'],'fuelCapacity'=>(int)$myShip['fuel_capacity_units'],'energy'=>(int)$myShip['energy_units'],'iron'=>(int)$myShip['iron_kg'],'nickel'=>(int)$myShip['nickel_kg'],'cobalt'=>(int)$myShip['cobalt_kg'],'ice'=>(int)$myShip['ice_kg'],'cargoCapacity'=>(int)$myShip['cargo_capacity_kg'],'hull'=>(int)$myShip['hull_hp']]:null,'ships'=>array_map(static fn($r)=>['id'=>(int)$r['id'],'name'=>$r['ship_name'],'class'=>$r['ship_class'],'active'=>(bool)$r['is_active'],'hull'=>(int)$r['hull_hp'],'fuel'=>(float)$r['fuel_units'],'fuelCapacity'=>(int)$r['fuel_capacity_units'],'energy'=>(int)$r['energy_units'],'iron'=>(int)$r['iron_kg'],'nickel'=>(int)$r['nickel_kg'],'cobalt'=>(int)$r['cobalt_kg'],'ice'=>(int)$r['ice_kg'],'cargoCapacity'=>(int)$r['cargo_capacity_kg'],'ownerId'=>(int)$r['owner_id'],'owner'=>$r['username'],'avatar'=>(string)$r['avatar_code'],'pilotPresent'=>(bool)$r['pilot_present'],'passengers'=>(int)$r['passenger_count'],'passengerCapacity'=>10],$dockedShips),'passengerManifest'=>array_map(static fn($r)=>['id'=>(int)$r['passenger_id'],'name'=>$r['username'],'fare'=>(int)$r['fare_credits'],'destination'=>$r['destination_name']],$passengerManifest),'pending'=>$pending,'requests'=>$requests,'rideRequests'=>array_map(static fn($r)=>['id'=>(int)$r['id'],'shipId'=>(int)$r['ship_id'],'passengerId'=>(int)$r['passenger_id'],'passengerName'=>$r['passenger_name'],'destination'=>$r['destination_name']],$rideRequests),'crew'=>$crew]);
+        mpResponse(['inside'=>true,'selfId'=>$userId,'mode'=>$location['mode'],'role'=>$role,'canUndock'=>$canUndock,'passenger'=>$passenger?['ship'=>(string)$passenger['ship_name'],'pilot'=>(string)$passenger['pilot_name'],'pilotId'=>(int)$passenger['pilot_id'],'pilotAvatar'=>(string)$passenger['pilot_avatar'],'copilot'=>(string)($passenger['copilot_name']??''),'copilotId'=>(int)($passenger['copilot_id']??0),'copilotAvatar'=>(string)($passenger['copilot_avatar']??''),'origin'=>(string)$passenger['origin_name'],'destination'=>(string)$passenger['destination_name'],'fare'=>(int)$passenger['fare_credits'],'shipId'=>(int)$passenger['ship_id'],'capacity'=>10,'fuel'=>(float)$passenger['fuel_units'],'fuelCapacity'=>(int)$passenger['fuel_capacity_units'],'cargoCapacity'=>(int)$passenger['cargo_capacity_kg'],'cargoWeightKg'=>(int)$passenger['iron_kg']+(int)$passenger['nickel_kg']+(int)$passenger['cobalt_kg']+(int)$passenger['ice_kg']+(float)$passenger['fuel_units']*0.5,'cargo'=>['iron'=>(int)$passenger['iron_kg'],'nickel'=>(int)$passenger['nickel_kg'],'cobalt'=>(int)$passenger['cobalt_kg'],'ice'=>(int)$passenger['ice_kg'],'fuelWeightKg'=>(float)$passenger['fuel_units']*0.5],'canDisembark'=>$passenger['docked_station_id']!==null,'dockedStationId'=>$passenger['docked_station_id']===null?null:(int)$passenger['docked_station_id'],'occupants'=>array_map(static fn($r)=>['id'=>(int)$r['user_id'],'name'=>$r['username'],'avatar'=>(string)$r['avatar_code'],'mode'=>(string)$r['mode'],'roomX'=>(float)$r['room_pos_x'],'roomZ'=>(float)$r['room_pos_z'],'roomYaw'=>(float)$r['room_yaw'],'hasWeapons'=>(bool)$r['has_weapons'],'hasPk'=>(bool)$r['has_pk']],$passengerOccupants)]:null,'station'=>['id'=>(int)$location['station_id'],'code'=>$location['code'],'name'=>$location['name'],'hull'=>(int)$location['hull_hp'],'x'=>(float)$location['pos_x'],'z'=>(float)$location['pos_z']],'stations'=>array_map(static fn($r)=>['id'=>(int)$r['id'],'name'=>$r['name'],'code'=>$r['code'],'x'=>(float)$r['pos_x'],'z'=>(float)$r['pos_z']],$stationList),'occupants'=>array_map(static fn($r)=>['id'=>(int)$r['user_id'],'name'=>$r['username'],'avatar'=>(string)$r['avatar_code'],'mode'=>$r['mode'],'ship'=>$r['ship_name'],'hasShip'=>(bool)$r['has_ship'],'shipHull'=>$r['ship_hull'],'hasWeapons'=>(bool)$r['has_weapons'],'hasPk'=>(bool)$r['has_pk'],'roomX'=>(float)$r['room_pos_x'],'roomZ'=>(float)$r['room_pos_z'],'roomYaw'=>(float)$r['room_yaw'],'roomCode'=>\NaveStar\Services\StationRoomService::roomCode((string)$location['code'],(float)$r['room_pos_z'])],$occupants),'myShip'=>$myShip?['name'=>$myShip['ship_name'],'class'=>$myShip['ship_class'],'fuel'=>(float)$myShip['fuel_units'],'fuelCapacity'=>(int)$myShip['fuel_capacity_units'],'energy'=>(int)$myShip['energy_units'],'iron'=>(int)$myShip['iron_kg'],'nickel'=>(int)$myShip['nickel_kg'],'cobalt'=>(int)$myShip['cobalt_kg'],'ice'=>(int)$myShip['ice_kg'],'cargoCapacity'=>(int)$myShip['cargo_capacity_kg'],'hull'=>(int)$myShip['hull_hp']]:null,'ships'=>array_map(static fn($r)=>['id'=>(int)$r['id'],'name'=>$r['ship_name'],'class'=>$r['ship_class'],'active'=>(bool)$r['is_active'],'hull'=>(int)$r['hull_hp'],'fuel'=>(float)$r['fuel_units'],'fuelCapacity'=>(int)$r['fuel_capacity_units'],'energy'=>(int)$r['energy_units'],'iron'=>(int)$r['iron_kg'],'nickel'=>(int)$r['nickel_kg'],'cobalt'=>(int)$r['cobalt_kg'],'ice'=>(int)$r['ice_kg'],'cargoCapacity'=>(int)$r['cargo_capacity_kg'],'ownerId'=>(int)$r['owner_id'],'owner'=>$r['username'],'avatar'=>(string)$r['avatar_code'],'pilotPresent'=>(bool)$r['pilot_present'],'passengers'=>(int)$r['passenger_count'],'passengerCapacity'=>10],$dockedShips),'passengerManifest'=>array_map(static fn($r)=>['id'=>(int)$r['passenger_id'],'name'=>$r['username'],'fare'=>(int)$r['fare_credits'],'destination'=>$r['destination_name']],$passengerManifest),'pending'=>$pending,'requests'=>$requests,'rideRequests'=>array_map(static fn($r)=>['id'=>(int)$r['id'],'shipId'=>(int)$r['ship_id'],'passengerId'=>(int)$r['passenger_id'],'passengerName'=>$r['passenger_name'],'destination'=>$r['destination_name']],$rideRequests),'crew'=>$crew]);
     }
 
     if ($action === 'passenger-disembark') {
@@ -1727,10 +1591,12 @@ try {
         $extension = $extensions[$mime] ?? 'webm';
         $day = date('Y-m-d');
         $relativePath = $day . '/' . bin2hex(random_bytes(16)) . '.' . $extension;
-        $absolutePath = voiceMessageAbsolutePath($relativePath);
         $dayDirectory = voiceMessageStorageRoot() . DIRECTORY_SEPARATOR . $day;
-        if ($absolutePath === null || (!is_dir($dayDirectory) && !@mkdir($dayDirectory, 0775, true) && !is_dir($dayDirectory))) mpResponse(['error' => 'Nao foi possivel preparar a pasta de mensagens de audio.'], 500);
+        if (is_link($dayDirectory) || (!is_dir($dayDirectory) && !@mkdir($dayDirectory, 0770, true) && !is_dir($dayDirectory))) mpResponse(['error' => 'Nao foi possivel preparar a pasta de mensagens de audio.'], 500);
+        $absolutePath = voiceMessageAbsolutePath($relativePath);
+        if ($absolutePath === null) mpResponse(['error' => 'Nao foi possivel preparar a pasta de mensagens de audio.'], 500);
         if (!move_uploaded_file($upload['tmp_name'], $absolutePath)) mpResponse(['error' => 'Nao foi possivel guardar o arquivo de audio.'], 500);
+        @chmod($absolutePath, 0660);
         try {
             $pdo->beginTransaction();
             $insert = $pdo->prepare('INSERT INTO voice_messages (sender_id,recipient_id,channel_type,mime_type,duration_ms,storage_path) VALUES (?,?,?,?,?,?)');
@@ -1760,9 +1626,13 @@ try {
         if (!$message) mpResponse(['error' => 'Mensagem de Ã¡udio nÃ£o encontrada.'], 404);
         $absolutePath = voiceMessageAbsolutePath((string)$message['storage_path']);
         if ($absolutePath === null || !is_file($absolutePath)) mpResponse(['error' => 'Arquivo de Ã¡udio indisponÃ­vel.'], 404);
-        header_remove('Content-Type');
-        header('Content-Type: ' . $message['mime_type']);
-        header('Content-Length: ' . filesize($absolutePath));
+        $size = @filesize($absolutePath);
+        $mime = (new finfo(FILEINFO_MIME_TYPE))->file($absolutePath);
+        if (!is_int($size) || $size < 1 || $size > 4 * 1024 * 1024 || !is_string($mime) || $mime !== (string)$message['mime_type'] || !preg_match('#^(audio/(webm|ogg|mp4|mpeg|wav|x-wav)|video/(webm|mp4))$#i', $mime)) mpResponse(['error' => 'Audio file unavailable.'], 404);
+        header('Content-Type: ' . $mime);
+        header('X-Content-Type-Options: nosniff');
+        header('Cache-Control: private, no-store');
+        header('Content-Length: ' . $size);
         header('Content-Disposition: inline; filename="mensagem-de-voz"');
         readfile($absolutePath);
         exit;

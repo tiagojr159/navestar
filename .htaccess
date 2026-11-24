@@ -1,0 +1,9 @@
+Options -Indexes
+
+<FilesMatch "^(config\.php|call-socket-config\.local\.php|\.env(?:\..*)?|call-socket.*\.log)$">
+    Require all denied
+</FilesMatch>
+
+<FilesMatch "\.(log|sql|bak|backup|ini|dump|sqlite|db)$">
+    Require all denied
+</FilesMatch>

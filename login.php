@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 session_set_cookie_params(['httponly' => true, 'samesite' => 'Lax']);
 session_start();
+require_once __DIR__ . '/src/Database/SchemaGuard.php';
 require_once __DIR__ . '/database/connection.php';
 require_once __DIR__ . '/database/lunar-base.php';
 
@@ -46,13 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                     $error = 'Digite o e-mail usado no cadastro.';
                 } else {
-                    $pdo->exec("CREATE TABLE IF NOT EXISTS password_reset_tokens (
-                      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, user_id BIGINT UNSIGNED NOT NULL,
-                      token_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, expires_at DATETIME NOT NULL,
-                      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (id),
-                      UNIQUE KEY uq_password_reset_hash (token_hash), KEY ix_password_reset_user (user_id),
-                      CONSTRAINT fk_password_reset_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-                    ) ENGINE=InnoDB");
+                    \NaveStar\Database\SchemaGuard::requireTable($pdo, 'password_reset_tokens');
                     $lookup = $pdo->prepare('SELECT id,username,email FROM users WHERE email=? AND is_active=1 LIMIT 1');
                     $lookup->execute([$email]);
                     $account = $lookup->fetch();
@@ -80,13 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif ($mode === 'reset') {
                 $rawToken = strtolower(trim((string)($_POST['token'] ?? '')));
                 $newPassword = (string)($_POST['new_password'] ?? '');
-                $pdo->exec("CREATE TABLE IF NOT EXISTS password_reset_tokens (
-                  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, user_id BIGINT UNSIGNED NOT NULL,
-                  token_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, expires_at DATETIME NOT NULL,
-                  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (id),
-                  UNIQUE KEY uq_password_reset_hash (token_hash), KEY ix_password_reset_user (user_id),
-                  CONSTRAINT fk_password_reset_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-                ) ENGINE=InnoDB");
+                \NaveStar\Database\SchemaGuard::requireTable($pdo, 'password_reset_tokens');
                 $findToken = $pdo->prepare('SELECT id,user_id FROM password_reset_tokens WHERE token_hash=? AND expires_at>NOW() LIMIT 1');
                 $findToken->execute([hash('sha256', $rawToken)]);
                 $reset = $findToken->fetch();

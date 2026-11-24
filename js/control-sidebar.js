@@ -325,7 +325,7 @@
   async function saveOrder(order) {
     const validOrder = order.filter(key => orderKeys.includes(key));
     try { localStorage.setItem('navestar-control-order', JSON.stringify(validOrder)); } catch (_) {}
-    try { await fetch('multiplayer-api.php?action=control-layout', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({order:validOrder}), credentials:'same-origin'}); } catch (_) {}
+    try { await NaveApi.request('multiplayer-api.php?action=control-layout', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({order:validOrder}), credentials:'same-origin'}); } catch (_) {}
   }
   for (const key of orderKeys) {
     const element = elements.get(key); if (!element) continue;

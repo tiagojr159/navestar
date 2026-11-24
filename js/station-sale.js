@@ -48,7 +48,7 @@ window.createStationSale = function ({ enabled, api, stationScreen, getCargo, se
     try {
       let data;
       if (enabled) {
-        const response = await fetch(api + '?action=station-sale&station=' + encodeURIComponent(station), {
+        const response = await NaveApi.request(api + '?action=station-sale&station=' + encodeURIComponent(station), {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ station, resource, source, amount })
         });

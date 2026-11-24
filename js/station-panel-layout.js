@@ -81,7 +81,7 @@
     const layout = {order: currentOrder(), collapsed: state};
     try { localStorage.setItem('navestar-station-panel-layout', JSON.stringify(layout)); } catch (_) {}
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => fetch((window.crewGame.api || 'multiplayer-api.php') + '?action=station-panel-layout', {
+    saveTimer = setTimeout(() => NaveApi.request((window.crewGame.api || 'multiplayer-api.php') + '?action=station-panel-layout', {
       method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(layout)
     }).catch(() => {}), 250);
   }
